@@ -74,18 +74,25 @@ return {
 			vim.keymap.set("n", "<leader>fj", function()
 				harpoon:list():add()
 			end)
-			vim.keymap.set("n", "<leader>fht", function()
+			vim.keymap.set("n", "<leader>hc", function()
 				harpoon.ui:toggle_quick_menu(harpoon:list())
 			end)
-			vim.keymap.set("n", "<leader>fho", function()
+			vim.keymap.set("n", "<leader>hl", function()
 				toggle_telescope(harpoon:list())
 			end, { desc = "Open harpoon window" })
-			vim.keymap.set("n", "<C-n>", function()
+
+			vim.keymap.set("n", "g(", function()
 				harpoon:list():prev()
 			end)
-			vim.keymap.set("n", "<C-m>", function()
+			vim.keymap.set("n", "g)", function()
 				harpoon:list():next()
 			end)
+
+			for i = 1, 9 do
+				vim.keymap.set("n", "g" .. i, function()
+					harpoon:list():select(i)
+				end, { desc = "Harpoon select " .. i })
+			end
 		end,
 	},
 
