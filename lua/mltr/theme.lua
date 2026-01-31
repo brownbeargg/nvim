@@ -79,6 +79,15 @@ local function setTypeColors()
 	set(0, "@constant", { link = "Constant" })
 	set(0, "@number", { link = "Number" })
 	set(0, "@variable", { link = "Identifier" })
+
+	set(0, "@operator", { link = "Operator" })
+	set(0, "@keyword.operator", { link = "Keyword" }) -- vaak voor new/delete in sommige queries
+	set(0, "@punctuation", { fg = colors.fg })
+	set(0, "@punctuation.delimiter", { fg = colors.fg })
+	set(0, "@punctuation.bracket", { fg = colors.fg })
+
+	set(0, "@lsp.type.keyword", { link = "Keyword" })
+	set(0, "@lsp.type.operator", { link = "Operator" })
 end
 
 local function setStatusColors()
@@ -93,17 +102,17 @@ local function setStatusColors()
 end
 
 local function setPopupColors(transparent)
-  local set = vim.api.nvim_set_hl
-  local bg = transparent and "NONE" or colors.gutter
+	local set = vim.api.nvim_set_hl
+	local bg = transparent and "NONE" or colors.gutter
 
-  set(0, "Pmenu", { fg = colors.fg, bg = bg })
-  set(0, "PmenuSel", { fg = colors.bg, bg = colors.keyword, bold = true })
-  set(0, "PmenuSbar", { bg = transparent and "NONE" or colors.gutter })
-  set(0, "PmenuThumb", { bg = colors.border })
+	set(0, "Pmenu", { fg = colors.fg, bg = bg })
+	set(0, "PmenuSel", { fg = colors.bg, bg = colors.keyword, bold = true })
+	set(0, "PmenuSbar", { bg = transparent and "NONE" or colors.gutter })
+	set(0, "PmenuThumb", { bg = colors.border })
 
-  set(0, "CmpPmenu", { link = "Pmenu" })
-  set(0, "CmpPmenuSel", { link = "PmenuSel" })
-  set(0, "CmpPmenuBorder", { link = "FloatBorder" })
+	set(0, "CmpPmenu", { link = "Pmenu" })
+	set(0, "CmpPmenuSel", { link = "PmenuSel" })
+	set(0, "CmpPmenuBorder", { link = "FloatBorder" })
 end
 
 local function setFloatColors(transparent)
@@ -145,21 +154,21 @@ local function setCMPColors()
 end
 
 local function setLuaSnipColors()
-  local set = vim.api.nvim_set_hl
+	local set = vim.api.nvim_set_hl
 
-  set(0, "LuasnipInsertNode", {
-    underline = true,
-    sp = colors.keyword,
-  })
+	set(0, "LuasnipInsertNode", {
+		underline = true,
+		sp = colors.keyword,
+	})
 
-  set(0, "LuasnipChoiceNode", {
-    underline = true,
-    sp = colors.func,
-  })
+	set(0, "LuasnipChoiceNode", {
+		underline = true,
+		sp = colors.func,
+	})
 
-  set(0, "LuasnipExitNode", {
-    fg = colors.dim,
-  })
+	set(0, "LuasnipExitNode", {
+		fg = colors.dim,
+	})
 end
 
 local function setTitleColors()
@@ -190,7 +199,7 @@ function M.colorscheme()
 	setFloatColors(transparentUI)
 	setTelescopeColors(transparentUI)
 	setCMPColors()
-    setLuaSnipColors()
+	setLuaSnipColors()
 	setTitleColors()
 end
 
