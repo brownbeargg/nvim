@@ -1,31 +1,44 @@
 local f = {}
 
 f.on_attach = function(client, bufnr)
-    local opts = { noremap=true, silent=true, buffer=bufnr }
+	local opts = { noremap = true, silent = true, buffer = bufnr }
 
-    --in file
-    vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-    vim.keymap.set("n", "<leader>lh", vim.lsp.buf.hover, opts)
-    vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
+	--in file
+	vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+	vim.keymap.set("n", "<leader>li", vim.lsp.buf.hover, opts)
+	vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
 
-    --diagnostics
-    vim.keymap.set("n", "]d", function()
-        vim.diagnostic.jump({count = 1, float = true})
-    end, opts)
+	--diagnostics
+	vim.keymap.set("n", "]d", function()
+		vim.diagnostic.jump({ count = 1, float = true })
+	end, opts)
 
-    vim.keymap.set("n", "[d", function()
-        vim.diagnostic.jump({count = -1, float = true})
-    end, opts)
+	vim.keymap.set("n", "[d", function()
+		vim.diagnostic.jump({ count = -1, float = true })
+	end, opts)
 
-    local function open_diagnostic_float()
-        pcall(vim.diagnostic.open_float, nil, {
-            focusable = false,
-            border = "rounded",
-            scope = "cursor",
-        })
-    end
+	vim.diagnostic.config({
+		virtual_text = {
+			spacing = 2,
+			prefix = "",
+			severity = { min = vim.diagnostic.severity.WARN },
+			source = "if_many",
+		},
+		signs = true,
+		underline = true,
+		update_in_insert = false,
+		severity_sort = true,
+	})
 
-    vim.keymap.set("n", "do", open_diagnostic_float, { desc = "diagnostics in float" })
+	local function open_diagnostic_float()
+		pcall(vim.diagnostic.open_float, nil, {
+			focusable = false,
+			border = "rounded",
+			scope = "cursor",
+		})
+	end
+
+	vim.keymap.set("n", "do", open_diagnostic_float, { desc = "diagnostics in float" })
 end
 
 f.capabilities = require("cmp_nvim_lsp").default_capabilities()

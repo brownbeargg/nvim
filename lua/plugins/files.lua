@@ -1,14 +1,26 @@
 local conf = require("telescope.config").values
 local themes = require("telescope.themes")
 
-local function toggle_telescope(harpoon_files)
+-- =========================
+-- Harpoon → Telescope bridge (safe)
+-- =========================
+local function toggle_telescope(harpoon_list)
 	local file_paths = {}
-	for _, item in ipairs(harpoon_files.items) do
-		table.insert(file_paths, item.value)
+
+	local items = harpoon_list.items or {}
+	for _, item in ipairs(items) do
+		local path = item.value or item.path
+		if path then
+			table.insert(file_paths, path)
+		end
 	end
+
 	local opts = themes.get_ivy({
-		promt_title = "Working List",
+		prompt_title = "Working List",
 	})
+
+	local actions = require("telescope.actions")
+	local action_state = require("telescope.actions.state")
 
 	require("telescope.pickers")
 		.new(opts, {
@@ -17,11 +29,33 @@ local function toggle_telescope(harpoon_files)
 			}),
 			previewer = conf.file_previewer(opts),
 			sorter = conf.generic_sorter(opts),
+
+			attach_mappings = function(prompt_bufnr, map)
+				actions.select_default:replace(function()
+					local entry = action_state.get_selected_entry()
+					actions.close(prompt_bufnr)
+
+					-- VERY IMPORTANT:
+					-- Wait until Telescope fully closes before editing buffer
+					vim.schedule(function()
+						pcall(vim.cmd, "NvimTreeClose") -- prevent E242 race
+						if entry and entry[1] then
+							vim.cmd("edit " .. vim.fn.fnameescape(entry[1]))
+						end
+					end)
+				end)
+
+				return true
+			end,
 		})
 		:find()
 end
 
 return {
+
+	-- =========================
+	-- Telescope
+	-- =========================
 	{
 		"nvim-telescope/telescope.nvim",
 		dependencies = {
@@ -54,15 +88,18 @@ return {
 			vim.keymap.set("n", "<leader>fg", builtin.git_files, { desc = "Find git files" })
 
 			vim.keymap.set("n", "<leader>fi", function()
-				require("telescope.builtin").current_buffer_fuzzy_find()
-			end, { desc = "find in current buffer" })
+				builtin.current_buffer_fuzzy_find()
+			end, { desc = "Find in current buffer" })
 
-			vim.keymap.set({ "n", "v" }, "<leader>lca", function()
+			vim.keymap.set({ "n", "v" }, "<leader>la", function()
 				vim.lsp.buf.code_action()
 			end, { desc = "LSP Code Actions" })
 		end,
 	},
 
+	-- =========================
+	-- Harpoon 2
+	-- =========================
 	{
 		"ThePrimeagen/harpoon",
 		branch = "harpoon2",
@@ -71,12 +108,15 @@ return {
 		},
 		config = function()
 			local harpoon = require("harpoon")
+
 			vim.keymap.set("n", "<leader>fj", function()
 				harpoon:list():add()
 			end)
+
 			vim.keymap.set("n", "<leader>hc", function()
 				harpoon.ui:toggle_quick_menu(harpoon:list())
 			end)
+
 			vim.keymap.set("n", "<leader>hl", function()
 				toggle_telescope(harpoon:list())
 			end, { desc = "Open harpoon window" })
@@ -84,6 +124,7 @@ return {
 			vim.keymap.set("n", "g(", function()
 				harpoon:list():prev()
 			end)
+
 			vim.keymap.set("n", "g)", function()
 				harpoon:list():next()
 			end)
@@ -96,14 +137,18 @@ return {
 		end,
 	},
 
+	-- =========================
+	-- Oil
+	-- =========================
 	{
 		"stevearc/oil.nvim",
 		dependencies = { "nvim-tree/nvim-web-devicons" },
-		keys = {
-			init = function()
+		init = function()
+			if vim.fn.maparg("-", "n") ~= "" then
 				vim.keymap.del("n", "-")
-			end,
-
+			end
+		end,
+		keys = {
 			{
 				"<leader>fo",
 				function()
@@ -117,10 +162,18 @@ return {
 			columns = { "icon", "size", "mtime" },
 			skip_confirm_for_simple_edits = true,
 			view_options = { show_hidden = true },
-			float = { padding = 2, max_width = 120, max_height = 40, border = "rounded" },
+			float = {
+				padding = 2,
+				max_width = 120,
+				max_height = 40,
+				border = "rounded",
+			},
 		},
 	},
 
+	-- =========================
+	-- Nvim-tree
+	-- =========================
 	{
 		"nvim-tree/nvim-tree.lua",
 		dependencies = {

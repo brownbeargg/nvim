@@ -13,8 +13,12 @@ return {
 		"hrsh7th/nvim-cmp",
 		dependencies = {
 			"hrsh7th/cmp-nvim-lsp",
+			"hrsh7th/cmp-buffer",
+			"hrsh7th/cmp-path",
+			"hrsh7th/cmp-nvim-lsp-signature-help",
 			"L3MON4D3/LuaSnip",
 			"saadparwaiz1/cmp_luasnip",
+			"rafamadriz/friendly-snippets",
 			"zbirenbaum/copilot-cmp",
 		},
 		config = function()
@@ -80,7 +84,7 @@ return {
 				formatting = {
 					fields = { "kind", "abbr", "menu" },
 					format = lspkind.cmp_format({
-						mode = "symbol_text", -- NVChad vibe
+						mode = "symbol_text",
 						maxwidth = 50,
 						ellipsis_char = "…",
 						menu = {

@@ -1,123 +1,68 @@
 return {
 	{
-		"folke/zen-mode.nvim",
-		keys = {
-			{ "<leader>z", "<cmd>ZenMode<cr>", desc = "ZenMode: Toggle" },
+		"folke/noice.nvim",
+		event = "VeryLazy",
+		dependencies = {
+			"MunifTanjim/nui.nvim",
+			-- nvim-notify is optioneel, maar jij gebruikt notify apart:
+			-- "rcarriga/nvim-notify",
 		},
 		opts = {
-			window = {
-				backdrop = 0.9,
-				width = 0.72,
-				height = 1,
-				options = {
-					number = false,
-					relativenumber = true,
-					signcolumn = "no",
-					cursorline = false,
-					foldcolumn = "0",
-				},
+			cmdline = { enabled = true },
+			messages = { enabled = false }, -- voorkomt dat je weer "onderin" spam krijgt van noice
+			popupmenu = { enabled = true }, -- cmdline popupmenu (werkt goed met cmp)
+			notify = { enabled = false }, -- laat nvim-notify dit doen
+			lsp = {
+				progress = { enabled = false },
+				hover = { enabled = false },
+				signature = { enabled = false },
+				message = { enabled = false },
 			},
-			plugins = {
-				options = {
-					enabled = true,
-					ruler = false,
-					showcmd = false,
-					laststatus = 0,
-				},
-				gitsigns = { enabled = true },
-				tmux = { enabled = false },
-				kitty = { enabled = false, font = "+2" },
+			presets = {
+				bottom_search = false,
+				command_palette = true, -- cmdline + popupmenu netjes uitgelijnd
+				long_message_to_split = true,
+				inc_rename = false,
+				lsp_doc_border = true,
 			},
 		},
 	},
 
 	{
-		"folke/noice.nvim",
+		"rcarriga/nvim-notify",
 		event = "VeryLazy",
-		dependencies = {
-			"MunifTanjim/nui.nvim",
-			"rcarriga/nvim-notify",
-			"nvim-tree/nvim-web-devicons",
-		},
 		opts = {
-			lsp = {
-				progress = { enabled = true },
-				signature = { enabled = true },
-				hover = { enabled = true },
-				override = {
-					["vim.lsp.util.convert_input_to_markdown_lines"] = true,
-					["vim.lsp.util.stylize_markdown"] = true,
-					["cmp.entry.get_documentation"] = true,
-				},
-			},
+			stages = "fade_in_slide_out",
+			timeout = 2500,
+			render = "compact",
 
-			presets = {
-				bottom_search = true,
-				command_palette = true,
-				long_message_to_split = true,
-				inc_rename = true,
-				lsp_doc_border = true,
-			},
+			top_down = false,
 
-			cmdline = {
-				view = "cmdline_popup",
-			},
+			max_width = function()
+				return math.floor(vim.o.columns * 0.35)
+			end,
 
-			views = {
-				cmdline_popup = {
-					position = {
-						row = math.floor(vim.o.lines * 0.90),
-						col = "50%",
-					},
-					size = {
-						width = 60,
-						height = "auto",
-					},
-				},
+			max_height = function()
+				return math.floor(vim.o.lines * 0.20)
+			end,
 
-				popupmenu = {
+			background_colour = "Normal",
+			minimum_width = 20,
+
+			on_open = function(win)
+				vim.api.nvim_win_set_config(win, {
 					relative = "editor",
-					position = {
-						row = math.floor(vim.o.lines * 0.90),
-						col = "50%",
-					},
-					size = {
-						width = 60,
-						height = 10,
-					},
-					border = {
-						style = "none",
-						padding = { 1, 2 },
-					},
-					win_options = {
-						winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder",
-					},
-				},
-			},
-
-			routes = {
-				{
-					filter = {
-						event = "msg_show",
-						find = "written",
-					},
-					opts = { skip = true },
-				},
-
-				{
-					filter = {
-						event = "msg_showmode",
-						find = "recording",
-					},
-					opts = { skip = true },
-				},
-
-				{
-					filter = { event = "msg_show", kind = "wmsg", find = "search hit" },
-					opts = { skip = true },
-				},
-			},
+					anchor = "NE",
+					row = 2,
+					col = vim.o.columns - 2,
+				})
+			end,
 		},
+		config = function(_, opts)
+			local notify = require("notify")
+			notify.setup(opts)
+			vim.notify = notify
+		end,
 	},
 
 	{
@@ -147,24 +92,6 @@ return {
 				}),
 			},
 		},
-	},
-
-	{
-		"rcarriga/nvim-notify",
-		lazy = true,
-		opts = {
-			stages = "fade_in_slide_out",
-			timeout = 3000,
-			background_colour = "#000000",
-			render = "default",
-			fps = 60,
-			top_down = false,
-		},
-		config = function(_, opts)
-			local notify = require("notify")
-			notify.setup(opts)
-			vim.notify = notify
-		end,
 	},
 
 	{
@@ -240,7 +167,6 @@ return {
 
 	{
 		"onsails/lspkind.nvim",
-		lazy = true,
 	},
 
 	{

@@ -3,18 +3,6 @@ return {
 		"neovim/nvim-lspconfig",
 	},
 	{
-		"hrsh7th/nvim-cmp",
-		dependencies = {
-			"hrsh7th/cmp-nvim-lsp",
-			"hrsh7th/cmp-buffer",
-			"hrsh7th/cmp-path",
-			"hrsh7th/cmp-nvim-lsp-signature-help",
-			"L3MON4D3/LuaSnip",
-			"saadparwaiz1/cmp_luasnip",
-			"rafamadriz/friendly-snippets",
-		},
-	},
-	{
 		"nvimtools/none-ls.nvim",
 		dependencies = { "nvim-lua/plenary.nvim" },
 		config = function()
@@ -101,47 +89,6 @@ return {
 					timeout_ms = 10000,
 				})
 			end, { desc = "Format buffer (none-ls)" })
-		end,
-	},
-
-	{
-		"olimorris/codecompanion.nvim",
-		dependencies = {
-			"nvim-lua/plenary.nvim",
-			"nvim-treesitter/nvim-treesitter",
-		},
-		opts = {
-			opts = {
-				log_level = "INFO",
-			},
-
-			interactions = {
-				chat = {
-					adapter = {
-						name = "ollama",
-						model = "qwen2.5:7b-instruct",
-					},
-				},
-				inline = {
-					adapter = {
-						name = "ollama",
-						model = "qwen2.5:7b-instruct",
-					},
-				},
-				cmd = {
-					adapter = {
-						name = "ollama",
-						model = "qwen2.5:7b-instruct",
-					},
-				},
-			},
-		},
-		config = function(_, opts)
-			require("codecompanion").setup(opts)
-
-			vim.keymap.set("n", "<leader>cc", "<cmd>CodeCompanionChat<cr>", { desc = "CodeCompanion Chat" })
-			vim.keymap.set("n", "<leader>ci", "<cmd>CodeCompanion<cr>", { desc = "CodeCompanion Inline" })
-			vim.keymap.set("n", "<leader>cm", "<cmd>CodeCompanionCmd<cr>", { desc = "CodeCompanion Cmd" })
 		end,
 	},
 }
