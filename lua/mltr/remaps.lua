@@ -1,3 +1,5 @@
+local opts = { noremap = true, silent = true }
+
 -- directories
 vim.keymap.set("n", "<leader>vd", vim.cmd.Ex)
 
@@ -25,8 +27,8 @@ vim.keymap.set("n", "<leader>y", '"+y')
 vim.keymap.set("n", "<leader>Y", '"+Y')
 vim.keymap.set("v", "<leader>y", '"+y')
 
-vim.keymap.set("n", "<leaderd", "\"_d")
-vim.keymap.set("v", "<leaderd", "\"_d")
+vim.keymap.set("n", "<leaderd", '"_d')
+vim.keymap.set("v", "<leaderd", '"_d')
 
 -- quickfix list
 vim.keymap.set("n", "<C-c>", "<cmd>cnext<CR>zz")
@@ -40,5 +42,11 @@ vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
+
+-- Resize height and width of a window with the arrow keys
+vim.keymap.set("n", "<Up>", ":resize +2<CR>", opts)
+vim.keymap.set("n", "<Down>", ":resize -2<CR>", opts)
+vim.keymap.set("n", "<Left>", ":vertical resize +2<CR>", opts)
+vim.keymap.set("n", "<Right>", ":vertical resize -2<CR>", opts)
 
 vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")

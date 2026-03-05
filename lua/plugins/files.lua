@@ -72,20 +72,59 @@ return {
 					telescope.load_extension("ui-select")
 				end,
 			},
+			{ "nvim-telescope/telescope-fzf-native.nvim" },
 		},
+
 		config = function()
 			if vim.fn.executable("rg") == 0 then
 				vim.notify("Ripgrep not found live_grep won't work!", vim.log.levels.WARN)
 			end
 
+			require("telescope").setup({
+				extensions = {
+					fzf = {},
+				},
+			})
+
+			pcall(require("telescope").load_extension, "fzf")
+
+			local opts = require("telescope.themes").get_ivy({
+				cwd = vim.fn.stdpath("config"),
+			})
+
 			local builtin = require("telescope.builtin")
 
-			vim.keymap.set("n", "<leader>fp", builtin.help_tags, { desc = "Find help" })
-			vim.keymap.set("n", "<leader>fa", builtin.buffers, { desc = "Find buffers" })
-			vim.keymap.set("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
-			vim.keymap.set("n", "<leader>fd", builtin.live_grep, { desc = "Find grep" })
-			vim.keymap.set("n", "<leader>fs", builtin.commands, { desc = "Find commands" })
-			vim.keymap.set("n", "<leader>fg", builtin.git_files, { desc = "Find git files" })
+			vim.keymap.set("n", "<leader>fp", function()
+				builtin.help_tags()
+			end, { desc = "Find help" })
+
+			vim.keymap.set("n", "<leader>fa", function()
+				builtin.buffers()
+			end, { desc = "Find buffers" })
+
+			vim.keymap.set("n", "<leader>ff", function()
+				builtin.find_files()
+			end, { desc = "Find files" })
+
+			vim.keymap.set("n", "<leader>fd", function()
+				builtin.live_grep()
+			end, { desc = "Find grep" })
+
+			vim.keymap.set("n", "<leader>fs", function()
+				builtin.commands()
+			end, { desc = "Find commands" })
+
+			vim.keymap.set("n", "<leader>fg", function()
+				builtin.git_files()
+			end, { desc = "Find git files" })
+
+			vim.keymap.set("n", "<leader>fk", function()
+				builtin.lsp_document_symbols()
+			end, { desc = "Find symbols in current file" })
+
+			vim.keymap.set("n", "<leader>fl", function()
+				builtin.lsp_workspace_symbols()
+			end, { desc = "Find symbols in current workspace" })
 
 			vim.keymap.set("n", "<leader>fi", function()
 				builtin.current_buffer_fuzzy_find()

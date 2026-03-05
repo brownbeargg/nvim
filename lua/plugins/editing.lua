@@ -4,16 +4,15 @@ return {
 		build = ":TSUpdate",
 		event = { "BufReadPost", "BufNewFile" },
 		dependencies = {
+			{ "nvim-treesitter/nvim-treesitter-textobjects", lazy = false },
 			"HiPhish/rainbow-delimiters.nvim",
 			"nvim-treesitter/playground",
-			"nvim-treesitter/nvim-treesitter-textobjects",
 		},
 		config = function()
 			require("nvim-treesitter.configs").setup({
 				ensure_installed = { "cpp", "c", "glsl", "lua", "vim", "bash" },
 				highlight = { enable = true },
 				indent = { enable = true },
-
 				textobjects = {
 					select = {
 						enable = true,
@@ -26,33 +25,20 @@ return {
 						},
 						include_surrounding_whitespace = true,
 					},
-
 					move = {
 						enable = true,
 						set_jumps = true,
-						goto_next_start = {
-							["]f"] = "@function.outer",
-							["]c"] = "@class.outer",
-						},
-						goto_next_end = {
-							["]F"] = "@function.outer",
-							["]C"] = "@class.outer",
-						},
-						goto_previous_start = {
-							["[f"] = "@function.outer",
-							["[c"] = "@class.outer",
-						},
-						goto_previous_end = {
-							["[F"] = "@function.outer",
-							["[C"] = "@class.outer",
-						},
+						goto_next_start = { ["]f"] = "@function.outer", ["]c"] = "@class.outer" },
+						goto_next_end = { ["]F"] = "@function.outer", ["]C"] = "@class.outer" },
+						goto_previous_start = { ["[f"] = "@function.outer", ["[c"] = "@class.outer" },
+						goto_previous_end = { ["[F"] = "@function.outer", ["[C"] = "@class.outer" },
 					},
 				},
 			})
 
 			local rainbow_delimiters = require("rainbow-delimiters")
 			vim.g.rainbow_delimiters = {
-				strategy = { [""] = rainbow_delimiters.strategy.global },
+				strategy = { [""] = rainbow_delimiters.strategy["global"] },
 				query = { [""] = "rainbow-delimiters" },
 				highlight = {
 					"RainbowDelimiterYellow",
@@ -63,6 +49,10 @@ return {
 				},
 			}
 		end,
+	},
+
+	{
+		"nvim-treesitter/nvim-treesitter-textobjects",
 	},
 
 	{
@@ -111,20 +101,62 @@ return {
 	{
 		"kylechui/nvim-surround",
 		event = "VeryLazy",
-		opts = {
-			keymaps = {
-				insert = "<C-s>i",
-				insert_line = "<C-s>l",
-				normal = "<C-s>nn",
-				normal_cur = "<C-s>nc",
-				normal_line = "<C-s>nl",
-				normal_cur_line = "<C-s>ncl",
-				visual = "<C-s>vv",
-				visual_line = "<C-s>vl",
-				delete = "<C-s>d",
-				change = "<C-s>c",
-			},
-		},
+
+		config = function()
+			vim.g.nvim_surround_no_mappings = true
+
+			-- INSERT MODE
+			vim.keymap.set("i", "<C-s>i", "<Plug>(nvim-surround-insert)", { desc = "Surround insert" })
+			vim.keymap.set("i", "<C-s>l", "<Plug>(nvim-surround-insert-line)", { desc = "Surround insert line" })
+
+			-- NORMAL MODE
+			vim.keymap.set("n", "<C-s>nn", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
+			vim.keymap.set("n", "<C-s>nc", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
+			vim.keymap.set("n", "<C-s>nl", "<Plug>(nvim-surround-normal-line)", { desc = "Surround line" })
+			vim.keymap.set("n", "<C-s>ncl", "<Plug>(nvim-surround-normal-cur-line)", { desc = "Surround current line" })
+
+			-- VISUAL MODE
+			vim.keymap.set("x", "<C-s>vv", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
+			vim.keymap.set("x", "<C-s>vl", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
+
+			-- DELETE / CHANGE
+			vim.keymap.set("n", "<C-s>d", "<Plug>(nvim-surround-delete)", { desc = "Delete surround" })
+			vim.keymap.set("n", "<C-s>c", "<Plug>(nvim-surround-change)", { desc = "Change surround" })
+			-- INSERT MODE
+			vim.keymap.set("i", "<C-s>i", "<Plug>(nvim-surround-insert)", { desc = "Surround insert" })
+			vim.keymap.set("i", "<C-s>l", "<Plug>(nvim-surround-insert-line)", { desc = "Surround insert line" })
+
+			-- NORMAL MODE
+			vim.keymap.set("n", "<C-s>nn", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
+			vim.keymap.set("n", "<C-s>nc", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
+			vim.keymap.set("n", "<C-s>nl", "<Plug>(nvim-surround-normal-line)", { desc = "Surround line" })
+			vim.keymap.set("n", "<C-s>ncl", "<Plug>(nvim-surround-normal-cur-line)", { desc = "Surround current line" })
+
+			-- VISUAL MODE
+			vim.keymap.set("x", "<C-s>vv", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
+			vim.keymap.set("x", "<C-s>vl", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
+
+			-- DELETE / CHANGE
+			vim.keymap.set("n", "<C-s>d", "<Plug>(nvim-surround-delete)", { desc = "Delete surround" })
+			vim.keymap.set("n", "<C-s>c", "<Plug>(nvim-surround-change)", { desc = "Change surround" })
+			-- INSERT MODE
+			vim.keymap.set("i", "<C-s>i", "<Plug>(nvim-surround-insert)", { desc = "Surround insert" })
+			vim.keymap.set("i", "<C-s>l", "<Plug>(nvim-surround-insert-line)", { desc = "Surround insert line" })
+
+			-- NORMAL MODE
+			vim.keymap.set("n", "<C-s>nn", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
+			vim.keymap.set("n", "<C-s>nc", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
+			vim.keymap.set("n", "<C-s>nl", "<Plug>(nvim-surround-normal-line)", { desc = "Surround line" })
+			vim.keymap.set("n", "<C-s>ncl", "<Plug>(nvim-surround-normal-cur-line)", { desc = "Surround current line" })
+
+			-- VISUAL MODE
+			vim.keymap.set("x", "<C-s>vv", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
+			vim.keymap.set("x", "<C-s>vl", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
+
+			-- DELETE / CHANGE
+			vim.keymap.set("n", "<C-s>d", "<Plug>(nvim-surround-delete)", { desc = "Delete surround" })
+			vim.keymap.set("n", "<C-s>c", "<Plug>(nvim-surround-change)", { desc = "Change surround" })
+		end,
 	},
 
 	{
@@ -326,6 +358,9 @@ return {
 			modes = {
 				search = { enabled = true },
 				char = { enabled = true },
+			},
+			search = {
+				max_range = 10,
 			},
 		},
 		keys = {
