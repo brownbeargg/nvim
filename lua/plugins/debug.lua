@@ -331,15 +331,20 @@ return {
 			-- Keymaps (IDE-like)
 			-- -------------------------
 			local map = vim.keymap.set
+			-- Run control
+			map("n", "<F5>", dap.continue, { desc = "DAP: Continue/Start" })
+			map("n", "<leader>ds", dap.run_last, { desc = "DAP: Run Last" })
+			map("n", "<leader>dt", dap.terminate, { desc = "DAP: Terminate" })
 
-			map("n", "<leader>d.", dap.continue, { desc = "DAP: Continue" })
-			map("n", "<leader>d)", dap.step_over, { desc = "DAP: Step Over" })
-			map("n", "<leader>d8", dap.step_into, { desc = "DAP: Step Into" })
-			map("n", "<leader>d2", dap.step_out, { desc = "DAP: Step Out" })
-			map("n", "<leader>dq", dap.terminate, { desc = "DAP: Terminate" })
+			-- Stepping
+			map("n", "<F1>", dap.step_over, { desc = "DAP: Step Over (Next)" })
+			map("n", "<F3>", dap.step_into, { desc = "DAP: Step Into" })
+			map("n", "<leader>do", dap.step_out, { desc = "DAP: Step Out" })
 
-			map("n", "<leader>db", dap.toggle_breakpoint, { desc = "DAP: Toggle Breakpoint" })
-			map("n", "<leader>dB", function()
+			-- Breakpoints
+			map("n", "<F9>", dap.toggle_breakpoint, { desc = "DAP: Toggle Breakpoint" })
+
+			map("n", "<leader>db", function()
 				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
 			end, { desc = "DAP: Conditional Breakpoint" })
 
@@ -351,11 +356,12 @@ return {
 				dap.set_breakpoint(nil, vim.fn.input("Hit count: "))
 			end, { desc = "DAP: Hitcount Breakpoint" })
 
-			map("n", "<leader>dr", dap.repl.open, { desc = "DAP: REPL" })
-			map("n", "<leader>d(", dap.run_last, { desc = "DAP: Run Last" })
+			-- Stack navigation
+			map("n", "<leader>du", dap.up, { desc = "DAP: Up Stack" })
+			map("n", "<leader>dd", dap.down, { desc = "DAP: Down Stack" })
 
-			map("n", "<leader>d3", dap.up, { desc = "DAP: Up Stack" })
-			map("n", "<leader>d9", dap.down, { desc = "DAP: Down Stack" })
+			-- REPL / Eval
+			map("n", "<leader>dr", dap.repl.open, { desc = "DAP: REPL" })
 
 			map({ "n", "v" }, "<leader>de", function()
 				local ok, dapui = pcall(require, "dapui")
@@ -413,7 +419,7 @@ return {
 				dapui.close()
 			end
 
-			vim.keymap.set("n", "<leader>du", dapui.toggle, { desc = "DAP: Toggle UI" })
+			vim.keymap.set("n", "<leader>dU", dapui.toggle, { desc = "DAP: Toggle UI" })
 			vim.keymap.set("n", "<leader>dw", function()
 				dapui.float_element("watches", { enter = true })
 			end, { desc = "DAP: Watches (float)" })
@@ -447,9 +453,9 @@ return {
 
 			local map = vim.keymap.set
 			map("n", "<leader>df", "<cmd>Telescope dap frames<CR>", { desc = "DAP: Frames (Telescope)" })
-			map("n", "<leader>dc", "<cmd>Telescope dap commands<CR>", { desc = "DAP: Commands (Telescope)" })
+			map("n", "<leader>dk", "<cmd>Telescope dap commands<CR>", { desc = "DAP: Commands (Telescope)" })
 			map("n", "<leader>dv", "<cmd>Telescope dap variables<CR>", { desc = "DAP: Variables (Telescope)" })
-			map("n", "<leader>d5", "<cmd>Telescope dap list_breakpoints<CR>", { desc = "DAP: Breakpoints (Telescope)" })
+			map("n", "<leader>dpt", "<cmd>Telescope dap list_breakpoints<CR>", { desc = "DAP: Breakpoints (Telescope)" })
 		end,
 	},
 
