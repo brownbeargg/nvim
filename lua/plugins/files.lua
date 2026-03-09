@@ -186,6 +186,15 @@ return {
 			if vim.fn.maparg("-", "n") ~= "" then
 				vim.keymap.del("n", "-")
 			end
+
+			vim.api.nvim_create_autocmd("VimEnter", {
+				callback = function()
+					local arg = vim.fn.argv(0)
+					if arg ~= "" and vim.fn.isdirectory(arg) == 1 then
+						require("oil").open(arg)
+					end
+				end,
+			})
 		end,
 		keys = {
 			{
@@ -195,9 +204,14 @@ return {
 				end,
 				desc = "Oil: Open float (cwd)",
 			},
+			{
+				"-",
+				"<CMD>Oil<CR>",
+				desc = "Open parent directory",
+			},
 		},
 		opts = {
-			default_file_explorer = false,
+			default_file_explorer = true,
 			columns = { "icon", "size", "mtime" },
 			skip_confirm_for_simple_edits = true,
 			view_options = { show_hidden = true },

@@ -39,3 +39,7 @@ vim.opt.updatetime = 50
 
 --lsp
 vim.opt.signcolumn = "yes"
+
+-- disable netrw
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
