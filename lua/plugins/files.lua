@@ -223,31 +223,4 @@ return {
 			},
 		},
 	},
-
-	-- =========================
-	-- Nvim-tree
-	-- =========================
-	{
-		"nvim-tree/nvim-tree.lua",
-		dependencies = {
-			"nvim-tree/nvim-web-devicons",
-		},
-		cmd = "NvimTreeToggle",
-		keys = {
-			{
-				"<C-e>",
-				function()
-					vim.cmd("NvimTreeToggle")
-				end,
-				desc = "Toggle tree",
-			},
-		},
-		config = function()
-			require("nvim-tree").setup({
-				view = {
-					side = "right",
-				},
-			})
-		end,
-	},
 }
