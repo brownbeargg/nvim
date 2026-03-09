@@ -110,48 +110,12 @@ return {
 			vim.keymap.set("i", "<C-s>l", "<Plug>(nvim-surround-insert-line)", { desc = "Surround insert line" })
 
 			-- NORMAL MODE
-			vim.keymap.set("n", "<C-s>nn", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
-			vim.keymap.set("n", "<C-s>nc", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
-			vim.keymap.set("n", "<C-s>nl", "<Plug>(nvim-surround-normal-line)", { desc = "Surround line" })
-			vim.keymap.set("n", "<C-s>ncl", "<Plug>(nvim-surround-normal-cur-line)", { desc = "Surround current line" })
+			vim.keymap.set("n", "<C-s>n", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
+			vim.keymap.set("n", "<C-s>x", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
 
 			-- VISUAL MODE
-			vim.keymap.set("x", "<C-s>vv", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
-			vim.keymap.set("x", "<C-s>vl", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
-
-			-- DELETE / CHANGE
-			vim.keymap.set("n", "<C-s>d", "<Plug>(nvim-surround-delete)", { desc = "Delete surround" })
-			vim.keymap.set("n", "<C-s>c", "<Plug>(nvim-surround-change)", { desc = "Change surround" })
-			-- INSERT MODE
-			vim.keymap.set("i", "<C-s>i", "<Plug>(nvim-surround-insert)", { desc = "Surround insert" })
-			vim.keymap.set("i", "<C-s>l", "<Plug>(nvim-surround-insert-line)", { desc = "Surround insert line" })
-
-			-- NORMAL MODE
-			vim.keymap.set("n", "<C-s>nn", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
-			vim.keymap.set("n", "<C-s>nc", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
-			vim.keymap.set("n", "<C-s>nl", "<Plug>(nvim-surround-normal-line)", { desc = "Surround line" })
-			vim.keymap.set("n", "<C-s>ncl", "<Plug>(nvim-surround-normal-cur-line)", { desc = "Surround current line" })
-
-			-- VISUAL MODE
-			vim.keymap.set("x", "<C-s>vv", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
-			vim.keymap.set("x", "<C-s>vl", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
-
-			-- DELETE / CHANGE
-			vim.keymap.set("n", "<C-s>d", "<Plug>(nvim-surround-delete)", { desc = "Delete surround" })
-			vim.keymap.set("n", "<C-s>c", "<Plug>(nvim-surround-change)", { desc = "Change surround" })
-			-- INSERT MODE
-			vim.keymap.set("i", "<C-s>i", "<Plug>(nvim-surround-insert)", { desc = "Surround insert" })
-			vim.keymap.set("i", "<C-s>l", "<Plug>(nvim-surround-insert-line)", { desc = "Surround insert line" })
-
-			-- NORMAL MODE
-			vim.keymap.set("n", "<C-s>nn", "<Plug>(nvim-surround-normal)", { desc = "Surround normal" })
-			vim.keymap.set("n", "<C-s>nc", "<Plug>(nvim-surround-normal-cur)", { desc = "Surround current" })
-			vim.keymap.set("n", "<C-s>nl", "<Plug>(nvim-surround-normal-line)", { desc = "Surround line" })
-			vim.keymap.set("n", "<C-s>ncl", "<Plug>(nvim-surround-normal-cur-line)", { desc = "Surround current line" })
-
-			-- VISUAL MODE
-			vim.keymap.set("x", "<C-s>vv", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
-			vim.keymap.set("x", "<C-s>vl", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
+			vim.keymap.set("x", "<C-s>a", "<Plug>(nvim-surround-visual)", { desc = "Surround visual" })
+			vim.keymap.set("x", "<C-s>n", "<Plug>(nvim-surround-visual-line)", { desc = "Surround visual line" })
 
 			-- DELETE / CHANGE
 			vim.keymap.set("n", "<C-s>d", "<Plug>(nvim-surround-delete)", { desc = "Delete surround" })
