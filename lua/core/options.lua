@@ -37,7 +37,7 @@ vim.opt.isfname:append("@-@")
 -- update
 vim.opt.updatetime = 50
 
---lsp
+-- lsp
 vim.opt.signcolumn = "yes"
 
 -- disable netrw

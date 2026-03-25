@@ -5,8 +5,13 @@ f.on_attach = function(client, bufnr)
 
 	--in file
 	vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-	vim.keymap.set("n", "<leader>li", vim.lsp.buf.hover, opts)
+	vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
 	vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
+
+	--cmake scan
+	vim.keymap.set("n", "<leader>li", function()
+		vim.cmd("!scan-build cmake --build build")
+	end, {desc = "scan cmake build"})
 
 	--diagnostics
 	vim.keymap.set("n", "]d", function()

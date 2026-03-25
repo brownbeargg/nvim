@@ -2,6 +2,7 @@ return {
 	{
 		"neovim/nvim-lspconfig",
 	},
+
 	{
 		"nvimtools/none-ls.nvim",
 		dependencies = { "nvim-lua/plenary.nvim" },
@@ -11,25 +12,32 @@ return {
 			local diagnostics = null_ls.builtins.diagnostics
 			local utils = require("null-ls.utils")
 
-			-- GLSL filetypes
 			local GLSL_FTS = { "glsl", "vert", "frag", "geom", "comp", "tesc", "tese" }
 
-			-- clang-format uitbreiden met GLSL
 			local clang_fts = vim.deepcopy(formatting.clang_format.filetypes or {})
 			vim.list_extend(clang_fts, GLSL_FTS)
+
+			local function path_join(...)
+				return table.concat({ ... }, package.config:sub(1, 1))
+			end
 
 			local function root_has(params, files)
 				local root = params and params.root
 				if not root or root == "" then
 					return false
 				end
+
 				for _, f in ipairs(files) do
-					local p = root .. "/" .. f
-					if vim.uv.fs_stat(p) then
+					if vim.uv.fs_stat(path_join(root, f)) then
 						return true
 					end
 				end
+
 				return false
+			end
+
+			local function is_glsl(ft)
+				return vim.tbl_contains(GLSL_FTS, ft)
 			end
 
 			null_ls.setup({
@@ -45,7 +53,6 @@ return {
 				),
 
 				sources = {
-					-- Lua
 					formatting.stylua,
 
 					diagnostics.selene.with({
@@ -54,14 +61,17 @@ return {
 						end,
 					}),
 
-					-- C / C++ / GLSL
 					formatting.clang_format.with({
 						filetypes = clang_fts,
 						extra_args = function(params)
-							local args = { "--assume-filename=shader.glsl" }
+							local args = {}
 
 							if root_has(params, { ".clang-format", "_clang-format" }) then
-								table.insert(args, 1, "--style=file")
+								table.insert(args, "--style=file")
+							end
+
+							if is_glsl(params.ft) then
+								table.insert(args, "--assume-filename=shader.glsl")
 							end
 
 							return args
@@ -89,6 +99,46 @@ return {
 					timeout_ms = 10000,
 				})
 			end, { desc = "Format buffer (none-ls)" })
+		end,
+	},
+
+	{
+		"mfussenegger/nvim-lint",
+		config = function()
+			local lint = require("lint")
+
+			lint.linters.cppcheck = {
+				cmd = "cppcheck",
+				stdin = false,
+				append_fname = true,
+				args = {
+					"--enable=warning,style,performance,portability",
+					"--inconclusive",
+					"--language=c++",
+					"--std=c++20",
+					"--template=gcc",
+				},
+				stream = "stderr",
+				ignore_exitcode = true,
+				parser = require("lint.parser").from_errorformat("%f:%l:%c: %tarning: %m", {
+					source = "cppcheck",
+				}),
+			}
+
+			lint.linters_by_ft = {
+				c = { "cppcheck" },
+				cpp = { "cppcheck" },
+			}
+
+			vim.api.nvim_create_autocmd({ "BufWritePost" }, {
+				callback = function()
+					lint.try_lint()
+				end,
+			})
+
+			vim.keymap.set("n", "<leader>lc", function()
+				lint.try_lint()
+			end, { desc = "Run cppcheck" })
 		end,
 	},
 }

@@ -455,7 +455,12 @@ return {
 			map("n", "<leader>df", "<cmd>Telescope dap frames<CR>", { desc = "DAP: Frames (Telescope)" })
 			map("n", "<leader>dk", "<cmd>Telescope dap commands<CR>", { desc = "DAP: Commands (Telescope)" })
 			map("n", "<leader>dv", "<cmd>Telescope dap variables<CR>", { desc = "DAP: Variables (Telescope)" })
-			map("n", "<leader>dpt", "<cmd>Telescope dap list_breakpoints<CR>", { desc = "DAP: Breakpoints (Telescope)" })
+			map(
+				"n",
+				"<leader>dpt",
+				"<cmd>Telescope dap list_breakpoints<CR>",
+				{ desc = "DAP: Breakpoints (Telescope)" }
+			)
 		end,
 	},
 

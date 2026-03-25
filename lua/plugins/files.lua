@@ -88,10 +88,6 @@ return {
 
 			pcall(require("telescope").load_extension, "fzf")
 
-			local opts = require("telescope.themes").get_ivy({
-				cwd = vim.fn.stdpath("config"),
-			})
-
 			local builtin = require("telescope.builtin")
 
 			vim.keymap.set("n", "<leader>fp", function()
