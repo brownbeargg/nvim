@@ -44,12 +44,10 @@ return {
 				debug = false,
 
 				root_dir = utils.root_pattern(
-					".git",
 					"compile_commands.json",
 					".clang-format",
 					"_clang-format",
-					"selene.toml",
-					"selene.yml"
+					".git"
 				),
 
 				sources = {
@@ -81,8 +79,6 @@ return {
 					diagnostics.glslc.with({
 						filetypes = GLSL_FTS,
 						extra_args = {
-							"--target-env=opengl",
-							"-std=330core",
 							"-c",
 							"-fauto-map-locations",
 							"-fauto-bind-uniforms",
@@ -107,30 +103,23 @@ return {
 		config = function()
 			local lint = require("lint")
 
-			lint.linters.cppcheck = {
-				cmd = "cppcheck",
-				stdin = false,
-				append_fname = true,
-				args = {
+			if lint.linters.cppcheck then
+				lint.linters.cppcheck.args = {
 					"--enable=warning,style,performance,portability",
 					"--inconclusive",
 					"--language=c++",
 					"--std=c++20",
 					"--template=gcc",
-				},
-				stream = "stderr",
-				ignore_exitcode = true,
-				parser = require("lint.parser").from_errorformat("%f:%l:%c: %tarning: %m", {
-					source = "cppcheck",
-				}),
-			}
+				}
+				lint.linters.cppcheck.ignore_exitcode = true
+			end
 
 			lint.linters_by_ft = {
 				c = { "cppcheck" },
 				cpp = { "cppcheck" },
 			}
 
-			vim.api.nvim_create_autocmd({ "BufWritePost" }, {
+			vim.api.nvim_create_autocmd("BufWritePost", {
 				callback = function()
 					lint.try_lint()
 				end,

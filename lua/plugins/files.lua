@@ -72,7 +72,10 @@ return {
 					telescope.load_extension("ui-select")
 				end,
 			},
-			{ "nvim-telescope/telescope-fzf-native.nvim" },
+			{
+				"nvim-telescope/telescope-fzf-native.nvim",
+				build = "make",
+			},
 		},
 
 		config = function()
