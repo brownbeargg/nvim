@@ -1075,9 +1075,9 @@ return {
 			end, { desc = "DAP: RenderDoc capture" })
 
 			-- Stepping
-			map("n", "<F1>", dap.step_over, { desc = "DAP: Step Over" })
-			map("n", "<F2>", dap.step_back, { desc = "DAP: Step Back" })
-			map("n", "<F3>", dap.step_into, { desc = "DAP: Step Into" })
+			map("n", "<F3>", dap.step_over, { desc = "DAP: Step Over" })
+			map("n", "<F1>", dap.step_back, { desc = "DAP: Step Back" })
+			map("n", "<F2>", dap.step_into, { desc = "DAP: Step Into" })
 			map("n", "<leader>do", dap.step_out, { desc = "DAP: Step Out" })
 
 			-- Breakpoints
