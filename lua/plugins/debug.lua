@@ -1,7 +1,4 @@
 return {
-	-- ------------------------------------------------------------
-	-- Installer + DAP adapter installer
-	-- ------------------------------------------------------------
 	{
 		"williamboman/mason.nvim",
 		opts = {},
@@ -9,33 +6,37 @@ return {
 
 	{
 		"jay-babu/mason-nvim-dap.nvim",
-		dependencies = { "williamboman/mason.nvim", "mfussenegger/nvim-dap" },
+		dependencies = {
+			"williamboman/mason.nvim",
+			"mfussenegger/nvim-dap",
+		},
 		opts = {
-			automatic_setup = true,
-			ensure_installed = {
-				"codelldb",
-			},
+			ensure_installed = { "codelldb" },
+			automatic_installation = false,
 		},
 	},
 
-	-- ------------------------------------------------------------
-	-- Core DAP
-	-- ------------------------------------------------------------
 	{
 		"mfussenegger/nvim-dap",
 		dependencies = {
+			"rcarriga/nvim-dap-ui",
+			"nvim-neotest/nvim-nio",
+			"theHamsta/nvim-dap-virtual-text",
 			"williamboman/mason.nvim",
 			"jay-babu/mason-nvim-dap.nvim",
 		},
 		config = function()
 			local dap = require("dap")
+			local dapui = require("dapui")
 			local uv = vim.uv or vim.loop
 
-			-- -------------------------
-			-- Helpers
-			-- -------------------------
+			local function notify(msg, level)
+				vim.notify(msg, level or vim.log.levels.INFO, { title = "DAP" })
+			end
+
 			local function is_windows()
-				return uv.os_uname().sysname:match("Windows") ~= nil
+				local uname = uv.os_uname()
+				return uname and uname.sysname and uname.sysname:match("Windows") ~= nil
 			end
 
 			local function path_join(...)
@@ -43,1102 +44,391 @@ return {
 				return table.concat({ ... }, sep)
 			end
 
-			local function normalize_path(p)
-				if not p or p == "" then
-					return p
-				end
-				return vim.fn.fnamemodify(p, ":p")
-			end
-
-			local function file_exists(p)
-				return p and uv.fs_stat(p) ~= nil
-			end
-
-			local function is_dir(p)
-				local st = p and uv.fs_stat(p)
-				return st and st.type == "directory"
-			end
-
-			local function read_text_file(p)
-				local ok, lines = pcall(vim.fn.readfile, p)
-				if not ok or not lines then
+			local function normalize(path)
+				if not path or path == "" then
 					return nil
 				end
-				return table.concat(lines, "\n")
+				return vim.fn.fnamemodify(path, ":p")
 			end
 
-			local function read_json_file(p)
-				local text = read_text_file(p)
-				if not text then
-					return nil
-				end
-				local ok, obj = pcall(vim.json.decode, text)
-				if not ok then
-					return nil
-				end
-				return obj
+			local function file_exists(path)
+				return path and uv.fs_stat(path) ~= nil
 			end
 
-			local function notify(msg, level)
-				vim.notify(msg, level or vim.log.levels.INFO, { title = "DAP" })
+			local function dir_exists(path)
+				local stat = path and uv.fs_stat(path)
+				return stat and stat.type == "directory"
 			end
 
-			local function workspace_root()
-				return normalize_path(vim.fn.getcwd())
+			local function executable_exists(bin)
+				return vim.fn.executable(bin) == 1
 			end
 
-			local function workspace_key()
-				return workspace_root()
+			local function project_root()
+				local buf = vim.api.nvim_buf_get_name(0)
+				local start = (buf ~= "" and vim.fs.dirname(buf)) or vim.loop.cwd()
+
+				local root = vim.fs.root(start, {
+					"CMakePresets.json",
+					"CMakeLists.txt",
+					".git",
+				})
+
+				return normalize(root or vim.loop.cwd())
 			end
 
-			-- -------------------------
-			-- Persistent-ish in-memory workspace state
-			-- -------------------------
+			local state_file = path_join(vim.fn.stdpath("state"), "dap_cpp_state.json")
 			local state = {
-				by_ws = {},
+				executable = nil,
+				cwd = nil,
+				args = {},
+				env = vim.empty_dict(),
+				build_dir = nil,
+				target = nil,
 			}
 
-			local function ws_state()
-				local key = workspace_key()
-				state.by_ws[key] = state.by_ws[key]
-					or {
-						last_executable = nil,
-						last_build_dir = nil,
-						last_cwd = nil,
-						last_target = nil,
-						last_test_target = nil,
-						last_args = {},
-						last_env = vim.empty_dict(),
-					}
-				return state.by_ws[key]
+			local function load_state()
+				if not file_exists(state_file) then
+					return
+				end
+
+				local ok_read, lines = pcall(vim.fn.readfile, state_file)
+				if not ok_read or not lines then
+					return
+				end
+
+				local ok_json, decoded = pcall(vim.json.decode, table.concat(lines, "\n"))
+				if not ok_json or type(decoded) ~= "table" then
+					return
+				end
+
+				state = vim.tbl_deep_extend("force", state, decoded)
 			end
 
-			local function set_state_field(k, v)
-				ws_state()[k] = v
+			local function save_state()
+				local ok_json, encoded = pcall(vim.json.encode, state)
+				if not ok_json then
+					return
+				end
+
+				vim.fn.mkdir(vim.fn.stdpath("state"), "p")
+				pcall(vim.fn.writefile, { encoded }, state_file)
 			end
 
-			local function get_state_field(k)
-				return ws_state()[k]
+			load_state()
+
+			local function default_build_dir()
+				return normalize(path_join(project_root(), "build"))
 			end
 
-			-- -------------------------
-			-- Path/template helpers
-			-- -------------------------
-			local function expand_preset_path(s, source_dir)
-				if type(s) ~= "string" then
+			local function choose_build_dir()
+				local current = state.build_dir
+				if current and dir_exists(current) then
+					return current
+				end
+
+				local picked = vim.fn.input("Build dir: ", default_build_dir(), "dir")
+				picked = normalize(picked)
+
+				if picked and picked ~= "" then
+					state.build_dir = picked
+					save_state()
+					return picked
+				end
+
+				notify("Geen build directory gekozen", vim.log.levels.WARN)
+				return nil
+			end
+
+			local function choose_executable()
+				local initial = state.executable or project_root() .. (is_windows() and "\\" or "/")
+				local picked = vim.fn.input("Executable: ", initial, "file")
+				picked = normalize(picked)
+
+				if not picked or picked == "" then
+					notify("Geen executable gekozen", vim.log.levels.WARN)
 					return nil
 				end
-				s = s:gsub("%${sourceDir}", source_dir)
-				s = s:gsub("%${workspaceFolder}", source_dir)
-				s = s:gsub("%${sourceParentDir}", vim.fn.fnamemodify(source_dir, ":h"))
-				s = s:gsub("%${sourceDirName}", vim.fn.fnamemodify(source_dir, ":t"))
-				return normalize_path(s)
+
+				if not file_exists(picked) then
+					notify("Executable bestaat niet: " .. picked, vim.log.levels.ERROR)
+					return nil
+				end
+
+				state.executable = picked
+				save_state()
+				return picked
 			end
 
-			-- -------------------------
-			-- Executable detection
-			-- -------------------------
-			local function is_probably_executable(p)
-				if not p or p == "" then
-					return false
+			local function input_args()
+				local initial = table.concat(state.args or {}, " ")
+				local raw = vim.fn.input("Args: ", initial)
+
+				if raw == nil then
+					return state.args or {}
 				end
 
-				if p:match("[/\\]CMakeFiles[/\\]") then
-					return false
-				end
-
-				if p:match("%.a$") or p:match("%.o$") or p:match("%.obj$") then
-					return false
-				end
-				if p:match("%.so$") or p:match("%.so%.") or p:match("%.dylib$") or p:match("%.dll$") then
-					return false
-				end
-				if p:match("%.pdb$") or p:match("%.ilk$") or p:match("%.lib$") or p:match("%.exp$") then
-					return false
-				end
-				if p:match("%.cmake$") or p:match("%.ninja$") or p:match("CMakeCache%.txt$") then
-					return false
-				end
-
-				local st = uv.fs_stat(p)
-				if not st or st.type ~= "file" then
-					return false
-				end
-
-				if is_windows() then
-					return p:lower():match("%.exe$") ~= nil
-				end
-
-				if st.mode then
-					local m = st.mode
-					local owner_exec = math.floor(m / 64) % 2 == 1
-					local group_exec = math.floor(m / 8) % 2 == 1
-					local other_exec = m % 2 == 1
-					return owner_exec or group_exec or other_exec
-				end
-
-				return false
-			end
-
-			local function find_exes_in_dir(dir)
-				local pattern
-				if is_windows() then
-					pattern = dir .. "/**/*.exe"
-				else
-					pattern = dir .. "/**/*"
-				end
-
-				local matches = vim.fn.glob(pattern, 1, 1)
-				local filtered = {}
-
-				for _, p in ipairs(matches) do
-					if is_probably_executable(p) then
-						table.insert(filtered, normalize_path(p))
-					end
-				end
-
-				table.sort(filtered)
-				return filtered
-			end
-
-			-- -------------------------
-			-- Simple selection helper
-			-- -------------------------
-			local function select_sync(items, opts, fallback)
-				local choice = nil
-				vim.ui.select(items, opts or {}, function(item)
-					choice = item
-				end)
-
-				vim.wait(2500, function()
-					return choice ~= nil
-				end, 25)
-
-				if choice ~= nil then
-					return choice
-				end
-
-				if fallback ~= nil then
-					return fallback
-				end
-
-				return items and items[1] or nil
-			end
-
-			-- -------------------------
-			-- Prompt helpers
-			-- -------------------------
-			local function pick_args(default_args)
-				local initial = ""
-				if type(default_args) == "table" and #default_args > 0 then
-					initial = table.concat(default_args, " ")
-				end
-
-				local s = vim.fn.input("Args: ", initial)
-				if not s or vim.trim(s) == "" then
-					set_state_field("last_args", {})
+				raw = vim.trim(raw)
+				if raw == "" then
+					state.args = {}
+					save_state()
 					return {}
 				end
 
-				local args = vim.fn.split(s, " ", true)
-				set_state_field("last_args", args)
+				-- Simpel en voorspelbaar: geen shell-quote parser.
+				local args = vim.split(raw, "%s+", { trimempty = true })
+				state.args = args
+				save_state()
 				return args
 			end
 
-			local function pick_env(default_env)
-				local default_str = ""
-				if type(default_env) == "table" then
-					local parts = {}
-					for k, v in pairs(default_env) do
-						table.insert(parts, tostring(k) .. "=" .. tostring(v))
-					end
-					table.sort(parts)
-					default_str = table.concat(parts, ",")
+			local function input_env()
+				local items = {}
+				for k, v in pairs(state.env or {}) do
+					items[#items + 1] = string.format("%s=%s", k, v)
+				end
+				table.sort(items)
+
+				local raw = vim.fn.input("Env KEY=VAL;KEY=VAL: ", table.concat(items, ";"))
+				if raw == nil then
+					return state.env or vim.empty_dict()
 				end
 
-				local s = vim.fn.input("Env (KEY=VAL, comma-separated): ", default_str)
-				if not s or vim.trim(s) == "" then
-					local env = vim.empty_dict()
-					set_state_field("last_env", env)
-					return env
+				raw = vim.trim(raw)
+				if raw == "" then
+					state.env = vim.empty_dict()
+					save_state()
+					return vim.empty_dict()
 				end
 
 				local env = vim.empty_dict()
-				for kv in s:gmatch("[^,]+") do
-					local k, v = kv:match("^%s*([^=]+)%s*=%s*(.-)%s*$")
+				for pair in raw:gmatch("[^;]+") do
+					local k, v = pair:match("^%s*([^=]+)%s*=%s*(.-)%s*$")
 					if k and v then
 						env[k] = v
 					end
 				end
 
-				set_state_field("last_env", env)
+				state.env = env
+				save_state()
 				return env
 			end
 
-			-- -------------------------
-			-- Working directory selection
-			-- -------------------------
-			local function pick_cwd(default_exe)
-				local ws = workspace_root()
-				local exe_dir = default_exe and vim.fn.fnamemodify(default_exe, ":p:h") or ws
-				local build_dir = get_state_field("last_build_dir") or ws
-				local last_cwd = get_state_field("last_cwd")
+			local function choose_cwd()
+				local root = project_root()
+				local exe_dir = state.executable and vim.fn.fnamemodify(state.executable, ":p:h") or root
+				local build_dir = state.build_dir or default_build_dir()
 
-				local entries = {
-					{ label = "Workspace root", value = ws },
-					{ label = "Executable dir", value = exe_dir },
-					{ label = "Build dir", value = build_dir },
+				local options = {
+					"1. Project root: " .. root,
+					"2. Executable dir: " .. exe_dir,
+					"3. Build dir: " .. build_dir,
+					"4. Custom",
 				}
 
-				if last_cwd and last_cwd ~= ws and last_cwd ~= exe_dir and last_cwd ~= build_dir then
-					table.insert(entries, 1, { label = "Last CWD", value = last_cwd })
+				local choice = vim.fn.inputlist(vim.list_extend({ "Choose CWD:" }, options))
+
+				local cwd = nil
+				if choice == 1 then
+					cwd = root
+				elseif choice == 2 then
+					cwd = exe_dir
+				elseif choice == 3 then
+					cwd = build_dir
+				elseif choice == 4 then
+					cwd = vim.fn.input("CWD: ", state.cwd or root, "dir")
 				end
 
-				table.insert(entries, { label = "Custom...", value = "__custom__" })
-
-				local labels = {}
-				for _, e in ipairs(entries) do
-					table.insert(labels, e.label .. "  ->  " .. e.value)
+				cwd = normalize(cwd)
+				if not cwd or cwd == "" then
+					notify("Geen geldige CWD gekozen", vim.log.levels.WARN)
+					return state.cwd or root
 				end
 
-				local chosen = select_sync(labels, { prompt = "Select working directory:" }, labels[1])
-				local picked_index = 1
-				for i, label in ipairs(labels) do
-					if label == chosen then
-						picked_index = i
-						break
-					end
-				end
-
-				local value = entries[picked_index].value
-				if value == "__custom__" then
-					value = vim.fn.input("CWD: ", last_cwd or ws, "dir")
-				end
-
-				value = normalize_path(value)
-				set_state_field("last_cwd", value)
-				return value
+				state.cwd = cwd
+				save_state()
+				return cwd
 			end
 
-			local function cwd_from_last_or_pick()
-				local cwd = get_state_field("last_cwd")
-				if cwd and is_dir(cwd) then
-					return cwd
+			local function current_cwd()
+				if state.cwd and dir_exists(state.cwd) then
+					return state.cwd
 				end
-				return pick_cwd(get_state_field("last_executable"))
+				return project_root()
 			end
 
-			-- -------------------------
-			-- CMake build directory discovery
-			-- -------------------------
-			local function get_candidate_build_dirs(source_dir)
-				local dirs = {}
-
-				local presets_path = path_join(source_dir, "CMakePresets.json")
-				if file_exists(presets_path) then
-					local presets = read_json_file(presets_path)
-					if presets and type(presets.configurePresets) == "table" then
-						for _, p in ipairs(presets.configurePresets) do
-							local bd = expand_preset_path(p.binaryDir, source_dir)
-							if bd and bd ~= "" then
-								table.insert(dirs, bd)
-							end
-						end
-					end
-				end
-
-				local common = {
-					path_join(source_dir, "build"),
-					path_join(source_dir, "Build"),
-					path_join(source_dir, "out", "build"),
-					path_join(source_dir, "cmake-build-debug"),
-					path_join(source_dir, "cmake-build-release"),
-				}
-
-				for _, d in ipairs(common) do
-					table.insert(dirs, d)
-				end
-
-				for _, d in ipairs(vim.fn.glob(path_join(source_dir, "out", "build", "*"), 1, 1)) do
-					table.insert(dirs, d)
-				end
-
-				for _, d in ipairs(vim.fn.glob(path_join(source_dir, "cmake-build-*"), 1, 1)) do
-					table.insert(dirs, d)
-				end
-
-				local seen, uniq = {}, {}
-				for _, d in ipairs(dirs) do
-					d = normalize_path(d)
-					if d and d ~= "" and not seen[d] then
-						seen[d] = true
-						table.insert(uniq, d)
-					end
-				end
-
-				return uniq
-			end
-
-			local function find_existing_build_dirs(source_dir)
-				local out = {}
-				for _, d in ipairs(get_candidate_build_dirs(source_dir)) do
-					if is_dir(d) then
-						table.insert(out, d)
-					end
-				end
-				return out
-			end
-
-			local function pick_build_dir()
-				local last = get_state_field("last_build_dir")
-				if last and is_dir(last) then
-					return last
-				end
-
-				local dirs = find_existing_build_dirs(workspace_root())
-				if #dirs == 0 then
-					local manual = vim.fn.input("Build directory: ", path_join(workspace_root(), "build"), "dir")
-					manual = normalize_path(manual)
-					set_state_field("last_build_dir", manual)
-					return manual
-				end
-
-				if #dirs == 1 then
-					set_state_field("last_build_dir", dirs[1])
-					return dirs[1]
-				end
-
-				local chosen = select_sync(dirs, { prompt = "Select build directory:" }, dirs[1])
-				set_state_field("last_build_dir", chosen)
-				return chosen
-			end
-
-			-- -------------------------
-			-- CMake File API
-			-- -------------------------
-			local function ensure_cmake_file_api_query(build_dir)
-				local query_dir = path_join(build_dir, ".cmake", "api", "v1", "query")
-				vim.fn.mkdir(query_dir, "p")
-
-				local query_files = {
-					path_join(query_dir, "codemodel-v2"),
-					path_join(query_dir, "cache-v2"),
-				}
-
-				for _, q in ipairs(query_files) do
-					if not file_exists(q) then
-						vim.fn.writefile({ "" }, q)
-					end
-				end
-			end
-
-			local function find_latest_reply_index(build_dir)
-				local reply_dir = path_join(build_dir, ".cmake", "api", "v1", "reply")
-				if not is_dir(reply_dir) then
-					return nil
-				end
-
-				local files = vim.fn.glob(path_join(reply_dir, "index-*.json"), 1, 1)
-				if not files or #files == 0 then
-					return nil
-				end
-
-				table.sort(files)
-				return files[#files]
-			end
-
-			local function cmake_configure_if_needed(build_dir)
-				ensure_cmake_file_api_query(build_dir)
-
-				local index = find_latest_reply_index(build_dir)
-				if index then
-					return true
-				end
-
-				local source_dir = workspace_root()
-				local cmd = { "cmake", "-S", source_dir, "-B", build_dir }
-				notify("Running configure for CMake File API: " .. table.concat(cmd, " "))
-
-				local result = vim.system(cmd, { text = true }):wait()
-				if result.code ~= 0 then
-					local output = (result.stderr and result.stderr ~= "" and result.stderr) or result.stdout or ""
-					notify("CMake configure failed\n" .. output, vim.log.levels.ERROR)
+			local function cmake_build(target)
+				if not executable_exists("cmake") then
+					notify("cmake niet gevonden in PATH", vim.log.levels.ERROR)
 					return false
 				end
 
-				return true
-			end
-
-			local function parse_cmake_targets(build_dir)
-				if not cmake_configure_if_needed(build_dir) then
-					return {}
-				end
-
-				local index_path = find_latest_reply_index(build_dir)
-				if not index_path then
-					return {}
-				end
-
-				local index = read_json_file(index_path)
-				if not index or not index.reply then
-					return {}
-				end
-
-				local codemodel_reply = index.reply["codemodel-v2"]
-				if not codemodel_reply or not codemodel_reply.jsonFile then
-					return {}
-				end
-
-				local reply_dir = path_join(build_dir, ".cmake", "api", "v1", "reply")
-				local codemodel = read_json_file(path_join(reply_dir, codemodel_reply.jsonFile))
-				if not codemodel or type(codemodel.configurations) ~= "table" then
-					return {}
-				end
-
-				local targets = {}
-
-				for _, cfg in ipairs(codemodel.configurations) do
-					if type(cfg.targets) == "table" then
-						for _, t in ipairs(cfg.targets) do
-							if t.jsonFile then
-								local tjson = read_json_file(path_join(reply_dir, t.jsonFile))
-								if tjson then
-									local kind = tjson.type or t.type or "UNKNOWN"
-									local name = tjson.name or t.name
-									local artifacts = {}
-
-									if type(tjson.artifacts) == "table" then
-										for _, a in ipairs(tjson.artifacts) do
-											if a.path then
-												table.insert(artifacts, normalize_path(path_join(build_dir, a.path)))
-											end
-										end
-									end
-
-									local executable = nil
-									for _, a in ipairs(artifacts) do
-										if is_probably_executable(a) then
-											executable = a
-											break
-										end
-									end
-
-									targets[name] = {
-										name = name,
-										type = kind,
-										executable = executable,
-										artifacts = artifacts,
-										raw = tjson,
-									}
-								end
-							end
-						end
-					end
-				end
-
-				return targets
-			end
-
-			local function get_cmake_targets()
-				local build_dir = pick_build_dir()
-				return parse_cmake_targets(build_dir), build_dir
-			end
-
-			local function list_target_names(targets, filter_fn)
-				local names = {}
-				for name, info in pairs(targets) do
-					if not filter_fn or filter_fn(info) then
-						table.insert(names, name)
-					end
-				end
-				table.sort(names)
-				return names
-			end
-
-			local function is_test_target_name(name)
-				local l = name:lower()
-				return l:match("test") ~= nil or l:match("tests") ~= nil or l:match("unittest") ~= nil
-			end
-
-			local function is_executable_target(info)
-				return info and info.type == "EXECUTABLE"
-			end
-
-			local function is_test_target(info)
-				return is_executable_target(info) and info.name and is_test_target_name(info.name)
-			end
-
-			local function pick_cmake_target(opts)
-				opts = opts or {}
-				local targets, build_dir = get_cmake_targets()
-
-				local names = list_target_names(targets, opts.filter)
-				if #names == 0 then
-					local manual = vim.fn.input("CMake target: ", get_state_field("last_target") or "")
-					manual = vim.trim(manual or "")
-					set_state_field("last_target", manual)
-					return manual, nil, build_dir
-				end
-
-				local preferred = opts.default_name
-				if preferred and targets[preferred] then
-					set_state_field("last_target", preferred)
-					return preferred, targets[preferred], build_dir
-				end
-
-				local labels = {}
-				for _, name in ipairs(names) do
-					local info = targets[name]
-					local suffix = ""
-					if info.executable then
-						suffix = " -> " .. info.executable
-					end
-					table.insert(labels, string.format("%s [%s]%s", name, info.type or "?", suffix))
-				end
-
-				local chosen = select_sync(labels, {
-					prompt = opts.prompt or "Select CMake target:",
-				}, labels[1])
-
-				local chosen_name = nil
-				for i, label in ipairs(labels) do
-					if label == chosen then
-						chosen_name = names[i]
-						break
-					end
-				end
-
-				chosen_name = chosen_name or names[1]
-				set_state_field("last_target", chosen_name)
-				return chosen_name, targets[chosen_name], build_dir
-			end
-
-			local function pick_test_target()
-				local default_name = get_state_field("last_test_target")
-				local name, info, build_dir = pick_cmake_target({
-					prompt = "Select test target:",
-					default_name = default_name,
-					filter = is_test_target,
-				})
-				if name and name ~= "" then
-					set_state_field("last_test_target", name)
-					set_state_field("last_target", name)
-				end
-				return name, info, build_dir
-			end
-
-			-- -------------------------
-			-- Build helpers
-			-- -------------------------
-			local function build_cmake_target(opts)
-				opts = opts or {}
-
-				local build_dir = opts.build_dir or pick_build_dir()
-				if not build_dir or build_dir == "" then
-					notify("No build directory selected", vim.log.levels.ERROR)
+				local build_dir = choose_build_dir()
+				if not build_dir then
 					return false
 				end
 
-				set_state_field("last_build_dir", build_dir)
-
-				local target = opts.target
-				if target == nil then
-					target = vim.fn.input("CMake target (empty = default/all): ", get_state_field("last_target") or "")
-					target = vim.trim(target or "")
-				end
-
-				if target and target ~= "" then
-					set_state_field("last_target", target)
-				end
-
-				local cmd = { "cmake", "--build", build_dir, "--config", "Debug" }
+				local cmd = { "cmake", "--build", build_dir }
 				if target and target ~= "" then
 					vim.list_extend(cmd, { "--target", target })
+					state.target = target
 				end
 
-				notify("Building: " .. table.concat(cmd, " "))
-				local result = vim.system(cmd, { text = true }):wait()
+				save_state()
+				notify("Build: " .. table.concat(cmd, " "))
 
+				local result = vim.system(cmd, { text = true }):wait()
 				if result.code ~= 0 then
-					local output = (result.stderr and result.stderr ~= "" and result.stderr) or result.stdout or ""
-					notify("Build failed\n" .. output, vim.log.levels.ERROR)
+					local output = (result.stderr ~= "" and result.stderr) or result.stdout or "Onbekende build fout"
+					notify(output, vim.log.levels.ERROR)
 					return false
 				end
 
-				notify("Build succeeded")
+				notify("Build gelukt")
 				return true
 			end
 
-			local function resolve_executable_for_target(target_name)
-				if not target_name or target_name == "" then
+			local function build_default_target()
+				local target = vim.fn.input("Target (leeg = default): ", state.target or "")
+				target = vim.trim(target or "")
+				if target == "" then
+					target = nil
+				end
+				return cmake_build(target)
+			end
+
+			local function ensure_executable()
+				if state.executable and file_exists(state.executable) then
+					return state.executable
+				end
+				return choose_executable()
+			end
+
+			local function build_and_pick_executable()
+				local ok = build_default_target()
+				if not ok then
 					return nil
 				end
-
-				local targets = parse_cmake_targets(pick_build_dir())
-				local info = targets[target_name]
-				if info and info.executable and file_exists(info.executable) then
-					set_state_field("last_executable", info.executable)
-					return info.executable
-				end
-
-				return nil
+				return ensure_executable()
 			end
 
-			local function pick_cmake_executable()
-				local last = get_state_field("last_executable")
-				if last and file_exists(last) then
-					return last
+			local function validation_env()
+				local env = vim.tbl_extend("force", {}, state.env or {})
+				env.VK_INSTANCE_LAYERS = "VK_LAYER_KHRONOS_validation"
+				if os.getenv("VK_LAYER_PATH") then
+					env.VK_LAYER_PATH = os.getenv("VK_LAYER_PATH")
 				end
-
-				local target = get_state_field("last_target")
-				if target and target ~= "" then
-					local exe = resolve_executable_for_target(target)
-					if exe then
-						return exe
-					end
-				end
-
-				local build_dir = pick_build_dir()
-				local candidates = find_exes_in_dir(build_dir)
-
-				if #candidates == 0 then
-					local manual = vim.fn.input("Path to executable: ", workspace_root() .. "/", "file")
-					manual = normalize_path(manual)
-					if manual and manual ~= "" then
-						set_state_field("last_executable", manual)
-					end
-					return manual
-				end
-
-				local chosen = select_sync(candidates, { prompt = "Select executable to debug:" }, candidates[1])
-				set_state_field("last_executable", chosen)
-				return chosen
+				return env
 			end
 
-			local function build_and_resolve_target_executable()
-				local target_name, target_info, build_dir = pick_cmake_target({
-					prompt = "Build + debug target:",
-					filter = is_executable_target,
-				})
+			local mason_root = path_join(vim.fn.stdpath("data"), "mason", "packages", "codelldb", "extension")
+			local adapter = path_join(mason_root, "adapter", is_windows() and "codelldb.exe" or "codelldb")
 
-				if not target_name or target_name == "" then
-					error("No target selected")
-				end
-
-				local ok = build_cmake_target({
-					build_dir = build_dir,
-					target = target_name,
-				})
-				if not ok then
-					error("Build failed")
-				end
-
-				local targets = parse_cmake_targets(build_dir)
-				local info = targets[target_name] or target_info
-				local exe = info and info.executable or nil
-
-				if not exe or not file_exists(exe) then
-					exe = pick_cmake_executable()
-				end
-
-				if exe and exe ~= "" then
-					set_state_field("last_executable", exe)
-				end
-
-				return exe
-			end
-
-			local function build_and_resolve_test_executable()
-				local target_name, target_info, build_dir = pick_test_target()
-
-				if not target_name or target_name == "" then
-					error("No test target selected")
-				end
-
-				local ok = build_cmake_target({
-					build_dir = build_dir,
-					target = target_name,
-				})
-				if not ok then
-					error("Build failed")
-				end
-
-				local targets = parse_cmake_targets(build_dir)
-				local info = targets[target_name] or target_info
-				local exe = info and info.executable or nil
-
-				if not exe or not file_exists(exe) then
-					exe = pick_cmake_executable()
-				end
-
-				if exe and exe ~= "" then
-					set_state_field("last_executable", exe)
-				end
-
-				return exe
-			end
-
-			local function build_last_target_and_resolve()
-				local target = get_state_field("last_target")
-				if not target or target == "" then
-					return build_and_resolve_target_executable()
-				end
-
-				local build_dir = pick_build_dir()
-				local ok = build_cmake_target({
-					build_dir = build_dir,
-					target = target,
-				})
-				if not ok then
-					error("Build failed")
-				end
-
-				local exe = resolve_executable_for_target(target)
-				if exe then
-					return exe
-				end
-
-				return pick_cmake_executable()
-			end
-
-			-- -------------------------
-			-- Vulkan / RenderDoc helpers
-			-- -------------------------
-			local function merge_env(a, b)
-				local out = vim.empty_dict()
-
-				if type(a) == "table" then
-					for k, v in pairs(a) do
-						out[k] = v
-					end
-				end
-				if type(b) == "table" then
-					for k, v in pairs(b) do
-						out[k] = v
-					end
-				end
-
-				return out
-			end
-
-			local function vulkan_validation_env()
-				return vim.tbl_extend("force", vim.empty_dict(), {
-					VK_LAYER_PATH = os.getenv("VK_LAYER_PATH") or "",
-					VK_INSTANCE_LAYERS = "VK_LAYER_KHRONOS_validation",
-				})
-			end
-
-			local function build_last_target_with_validation()
-				return build_last_target_and_resolve()
-			end
-
-			local function renderdoc_capture_and_return_exe()
-				local exe = build_last_target_and_resolve()
-				if not exe or exe == "" then
-					error("No executable found for RenderDoc capture")
-				end
-
-				local args = get_state_field("last_args") or {}
-				local cwd = get_state_field("last_cwd") or workspace_root()
-
-				local cmd = { "renderdoccmd", "capture", exe }
-				for _, arg in ipairs(args) do
-					table.insert(cmd, arg)
-				end
-
-				notify("Starting RenderDoc capture: " .. table.concat(cmd, " "))
-				local result = vim.system(cmd, {
-					cwd = cwd,
-					text = true,
-				}):wait()
-
-				if result.code ~= 0 then
-					local output = (result.stderr and result.stderr ~= "" and result.stderr) or result.stdout or ""
-					notify("RenderDoc capture failed\n" .. output, vim.log.levels.ERROR)
-				else
-					notify("RenderDoc capture finished")
-				end
-
-				return exe
-			end
-
-			-- -------------------------
-			-- DAP signs
-			-- -------------------------
-			vim.fn.sign_define("DapBreakpoint", { text = "●", texthl = "DiagnosticError" })
-			vim.fn.sign_define("DapBreakpointCondition", { text = "◆", texthl = "DiagnosticWarn" })
-			vim.fn.sign_define("DapLogPoint", { text = "◉", texthl = "DiagnosticInfo" })
-			vim.fn.sign_define("DapStopped", { text = "▶", texthl = "DiagnosticWarn", linehl = "Visual" })
-
-			-- -------------------------
-			-- Adapter: CodeLLDB via Mason path
-			-- -------------------------
-			local mason_root = vim.fn.stdpath("data") .. "/mason"
-			local codelldb_exe = path_join(mason_root, "packages", "codelldb", "extension", "adapter", "codelldb")
-			if is_windows() then
-				codelldb_exe = codelldb_exe .. ".exe"
+			if not file_exists(adapter) then
+				notify("CodeLLDB niet gevonden via Mason: " .. adapter, vim.log.levels.WARN)
 			end
 
 			dap.adapters.codelldb = {
 				type = "server",
 				port = "${port}",
 				executable = {
-					command = codelldb_exe,
+					command = adapter,
 					args = { "--port", "${port}" },
 				},
 			}
 
-			-- -------------------------
-			-- DAP configurations
-			-- -------------------------
 			dap.configurations.cpp = {
 				{
-					name = "Build + Launch (choose CMake target)",
-					type = "codelldb",
-					request = "launch",
-					program = build_and_resolve_target_executable,
-					cwd = function()
-						return pick_cwd(get_state_field("last_executable"))
-					end,
-					stopOnEntry = false,
-					args = function()
-						return get_state_field("last_args") or {}
-					end,
-					env = function()
-						return get_state_field("last_env") or vim.empty_dict()
-					end,
-					runInTerminal = true,
-				},
-				{
-					name = "Build + Launch (last target)",
-					type = "codelldb",
-					request = "launch",
-					program = build_last_target_and_resolve,
-					cwd = cwd_from_last_or_pick,
-					stopOnEntry = false,
-					args = function()
-						return get_state_field("last_args") or {}
-					end,
-					env = function()
-						return get_state_field("last_env") or vim.empty_dict()
-					end,
-					runInTerminal = true,
-				},
-				{
-					name = "Build + Launch Test",
-					type = "codelldb",
-					request = "launch",
-					program = build_and_resolve_test_executable,
-					cwd = function()
-						return pick_cwd(get_state_field("last_executable"))
-					end,
-					stopOnEntry = false,
-					args = function()
-						local last = get_state_field("last_args") or {}
-						return pick_args(last)
-					end,
-					env = function()
-						return get_state_field("last_env") or vim.empty_dict()
-					end,
-					runInTerminal = true,
-				},
-				{
-					name = "Launch (ask executable)",
+					name = "Launch executable",
 					type = "codelldb",
 					request = "launch",
 					program = function()
-						local p = vim.fn.input("Path to executable: ", workspace_root() .. "/", "file")
-						p = normalize_path(p)
-						if p ~= "" then
-							set_state_field("last_executable", p)
-						end
-						return p
+						return ensure_executable()
 					end,
 					cwd = function()
-						return pick_cwd(get_state_field("last_executable"))
+						return current_cwd()
 					end,
-					stopOnEntry = false,
 					args = function()
-						return pick_args(get_state_field("last_args"))
+						return state.args or {}
 					end,
 					env = function()
-						return pick_env(get_state_field("last_env"))
+						return state.env or {}
 					end,
 					runInTerminal = true,
+					stopOnEntry = false,
 				},
 				{
-					name = "Launch (manual args/env)",
+					name = "Build then launch",
 					type = "codelldb",
 					request = "launch",
 					program = function()
-						local exe = pick_cmake_executable()
-						set_state_field("last_executable", exe)
-						return exe
+						return build_and_pick_executable()
 					end,
 					cwd = function()
-						return pick_cwd(get_state_field("last_executable"))
+						return current_cwd()
 					end,
-					stopOnEntry = false,
 					args = function()
-						return pick_args(get_state_field("last_args"))
+						return state.args or {}
 					end,
 					env = function()
-						return pick_env(get_state_field("last_env"))
+						return state.env or {}
 					end,
 					runInTerminal = true,
+					stopOnEntry = false,
 				},
 				{
-					name = "Launch (Vulkan validation)",
+					name = "Launch with Vulkan validation",
 					type = "codelldb",
 					request = "launch",
-					program = build_last_target_with_validation,
-					cwd = cwd_from_last_or_pick,
-					stopOnEntry = false,
+					program = function()
+						return ensure_executable()
+					end,
+					cwd = function()
+						return current_cwd()
+					end,
 					args = function()
-						return get_state_field("last_args") or {}
+						return state.args or {}
 					end,
-					env = function()
-						return merge_env(get_state_field("last_env"), vulkan_validation_env())
-					end,
+					env = validation_env,
 					runInTerminal = true,
+					stopOnEntry = false,
 				},
 				{
-					name = "Attach (pick process)",
+					name = "Attach process",
 					type = "codelldb",
 					request = "attach",
 					pid = require("dap.utils").pick_process,
-					cwd = "${workspaceFolder}",
-					args = {},
+					cwd = function()
+						return current_cwd()
+					end,
 				},
 			}
 
 			dap.configurations.c = dap.configurations.cpp
 
-			-- -------------------------
-			-- Keymaps
-			-- -------------------------
-			local map = vim.keymap.set
-
-			-- Run control
-			map("n", "<F5>", dap.continue, { desc = "DAP: Continue/Start" })
-			map("n", "<leader>ds", dap.run_last, { desc = "DAP: Run Last" })
-			map("n", "<leader>dt", dap.terminate, { desc = "DAP: Terminate" })
-
-			-- Build / targets
-			map("n", "<leader>dB", function()
-				build_cmake_target({})
-			end, { desc = "DAP: Build CMake target" })
-
-			map("n", "<leader>dT", function()
-				local name = select(
-					1,
-					pick_cmake_target({
-						prompt = "Select main target:",
-						filter = is_executable_target,
-					})
-				)
-				if name and name ~= "" then
-					notify("Selected target: " .. name)
-				end
-			end, { desc = "DAP: Pick target" })
-
-			map("n", "<leader>dX", function()
-				local name = select(1, pick_test_target())
-				if name and name ~= "" then
-					notify("Selected test target: " .. name)
-				end
-			end, { desc = "DAP: Pick test target" })
-
-			map("n", "<leader>dc", function()
-				local cwd = pick_cwd(get_state_field("last_executable"))
-				if cwd and cwd ~= "" then
-					notify("CWD set to: " .. cwd)
-				end
-			end, { desc = "DAP: Pick CWD" })
-
-			map("n", "<leader>da", function()
-				pick_args(get_state_field("last_args"))
-			end, { desc = "DAP: Pick args" })
-
-			map("n", "<leader>dE", function()
-				pick_env(get_state_field("last_env"))
-			end, { desc = "DAP: Pick env" })
-
-			map("n", "<leader>dvk", function()
-				local env = merge_env(get_state_field("last_env"), vulkan_validation_env())
-				set_state_field("last_env", env)
-				notify("Vulkan validation env prepared")
-			end, { desc = "DAP: Prepare Vulkan validation env" })
-
-			map("n", "<leader>dR", function()
-				renderdoc_capture_and_return_exe()
-			end, { desc = "DAP: RenderDoc capture" })
-
-			-- Stepping
-			map("n", "<F3>", dap.step_over, { desc = "DAP: Step Over" })
-			map("n", "<F1>", dap.step_back, { desc = "DAP: Step Back" })
-			map("n", "<F2>", dap.step_into, { desc = "DAP: Step Into" })
-			map("n", "<leader>do", dap.step_out, { desc = "DAP: Step Out" })
-
-			-- Breakpoints
-			map("n", "<F9>", dap.toggle_breakpoint, { desc = "DAP: Toggle Breakpoint" })
-
-			map("n", "<leader>db", function()
-				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
-			end, { desc = "DAP: Conditional Breakpoint" })
-
-			map("n", "<leader>dl", function()
-				dap.set_breakpoint(nil, nil, vim.fn.input("Log point message: "))
-			end, { desc = "DAP: Logpoint" })
-
-			map("n", "<leader>dh", function()
-				dap.set_breakpoint(nil, vim.fn.input("Hit count: "))
-			end, { desc = "DAP: Hitcount Breakpoint" })
-
-			-- Stack navigation
-			map("n", "<leader>du", dap.up, { desc = "DAP: Up Stack" })
-			map("n", "<leader>dd", dap.down, { desc = "DAP: Down Stack" })
-
-			-- REPL / Eval
-			map("n", "<leader>dr", dap.repl.open, { desc = "DAP: REPL" })
-
-			map({ "n", "v" }, "<leader>de", function()
-				local ok, dapui = pcall(require, "dapui")
-				if ok then
-					dapui.eval()
-				end
-			end, { desc = "DAP: Eval" })
-		end,
-	},
-
-	-- ------------------------------------------------------------
-	-- DAP UI
-	-- ------------------------------------------------------------
-	{
-		"rcarriga/nvim-dap-ui",
-		dependencies = { "mfussenegger/nvim-dap", "nvim-neotest/nvim-nio" },
-		config = function()
-			local dap = require("dap")
-			local dapui = require("dapui")
+			vim.fn.sign_define("DapBreakpoint", { text = "●", texthl = "DiagnosticError" })
+			vim.fn.sign_define("DapBreakpointCondition", { text = "◆", texthl = "DiagnosticWarn" })
+			vim.fn.sign_define("DapStopped", { text = "▶", texthl = "DiagnosticWarn", linehl = "Visual" })
+			vim.fn.sign_define("DapLogPoint", { text = "◉", texthl = "DiagnosticInfo" })
 
 			dapui.setup({
 				layouts = {
 					{
 						elements = {
-							{ id = "scopes", size = 0.40 },
+							{ id = "scopes", size = 0.45 },
+							{ id = "stacks", size = 0.20 },
 							{ id = "breakpoints", size = 0.15 },
-							{ id = "stacks", size = 0.25 },
 							{ id = "watches", size = 0.20 },
 						},
-						size = 45,
+						size = 42,
 						position = "left",
 					},
 					{
 						elements = {
-							{ id = "repl", size = 0.40 },
-							{ id = "console", size = 0.60 },
+							{ id = "repl", size = 0.45 },
+							{ id = "console", size = 0.55 },
 						},
-						size = 0.30,
+						size = 0.28,
 						position = "bottom",
 					},
 				},
@@ -1148,85 +438,107 @@ return {
 				},
 			})
 
-			dap.listeners.after.event_initialized["dapui_config"] = function()
+			dap.listeners.after.event_initialized["dapui_auto"] = function()
 				dapui.open()
 			end
-			dap.listeners.before.event_terminated["dapui_config"] = function()
+			dap.listeners.before.event_terminated["dapui_auto"] = function()
 				dapui.close()
 			end
-			dap.listeners.before.event_exited["dapui_config"] = function()
+			dap.listeners.before.event_exited["dapui_auto"] = function()
 				dapui.close()
 			end
 
-			vim.keymap.set("n", "<leader>dU", dapui.toggle, { desc = "DAP: Toggle UI" })
-			vim.keymap.set("n", "<leader>dw", function()
-				dapui.float_element("watches", { enter = true })
-			end, { desc = "DAP: Watches (float)" })
-		end,
-	},
-
-	-- ------------------------------------------------------------
-	-- Inline virtual text
-	-- ------------------------------------------------------------
-	{
-		"theHamsta/nvim-dap-virtual-text",
-		dependencies = { "mfussenegger/nvim-dap" },
-		opts = {
-			commented = true,
-			virt_text_pos = "eol",
-		},
-	},
-
-	-- ------------------------------------------------------------
-	-- Telescope integration
-	-- ------------------------------------------------------------
-	{
-		"nvim-telescope/telescope-dap.nvim",
-		dependencies = { "nvim-telescope/telescope.nvim", "mfussenegger/nvim-dap" },
-		config = function()
-			local ok, telescope = pcall(require, "telescope")
-			if not ok then
-				return
-			end
-
-			pcall(telescope.load_extension, "dap")
+			require("nvim-dap-virtual-text").setup({
+				commented = true,
+				virt_text_pos = "eol",
+			})
 
 			local map = vim.keymap.set
-			map("n", "<leader>df", "<cmd>Telescope dap frames<CR>", { desc = "DAP: Frames (Telescope)" })
-			map("n", "<leader>dk", "<cmd>Telescope dap commands<CR>", { desc = "DAP: Commands (Telescope)" })
-			map("n", "<leader>dv", "<cmd>Telescope dap variables<CR>", { desc = "DAP: Variables (Telescope)" })
-			map(
-				"n",
-				"<leader>dpt",
-				"<cmd>Telescope dap list_breakpoints<CR>",
-				{ desc = "DAP: Breakpoints (Telescope)" }
-			)
+			map("n", "<F1>", dap.repl.open, { desc = "DAP REPL" })
+			map("n", "<F2>", dapui.eval, { desc = "DAP Eval" })
+			map("n", "<F3>", dap.restart, { desc = "DAP Restart" })
+			map("n", "<F5>", dap.continue, { desc = "DAP Continue" })
+			map("n", "<F6>", dap.run_last, { desc = "DAP Run last" })
+			map("n", "<F7>", dapui.toggle, { desc = "DAP UI toggle" })
+			map("n", "<F8>", dap.toggle_breakpoint, { desc = "DAP Breakpoint" })
+			map("n", "<F9>", dap.step_over, { desc = "DAP Step over" })
+			map("n", "<F10>", dap.step_into, { desc = "DAP Step into" })
+			map("n", "<F11>", dap.step_out, { desc = "DAP Step out" })
+			map("n", "<F12>", dap.terminate, { desc = "DAP Terminate" })
+
+			map("n", "<leader>dr", dap.repl.open, { desc = "DAP REPL" })
+			map("n", "<leader>dt", dapui.toggle, { desc = "DAP Toggle UI" })
+			map("n", "<leader>db", dap.toggle_breakpoint, { desc = "DAP Breakpoint" })
+			map({ "n", "v" }, "<leader>dw", function()
+				dapui.eval()
+			end, { desc = "DAP Word/selection eval" })
+			map("n", "<leader>dq", dap.terminate, { desc = "DAP Quit" })
+			map("n", "<leader>df", function()
+				local exe = choose_executable()
+				if exe then
+					notify("Executable: " .. exe)
+				end
+			end, { desc = "DAP File executable" })
+			map("n", "<leader>dg", function()
+				local cwd = choose_cwd()
+				if cwd then
+					notify("CWD: " .. cwd)
+				end
+			end, { desc = "DAP Ground/CWD" })
+			map("n", "<leader>da", function()
+				input_args()
+			end, { desc = "DAP Args" })
+			map("n", "<leader>dv", function()
+				input_env()
+			end, { desc = "DAP Variables/env" })
+			map("n", "<leader>dm", function()
+				choose_build_dir()
+			end, { desc = "DAP Make/build dir" })
+			map("n", "<leader>dn", function()
+				build_default_target()
+			end, { desc = "DAP Ninja/CMake build" })
+			map("n", "<leader>dp", function()
+				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
+			end, { desc = "DAP Predicate breakpoint" })
+			map("n", "<leader>dl", function()
+				dap.set_breakpoint(nil, nil, vim.fn.input("Log point: "))
+			end, { desc = "DAP Log point" })
+			map("n", "<leader>dj", dap.down, { desc = "DAP Down stack" })
+			map("n", "<leader>dk", dap.up, { desc = "DAP Up stack" })
 		end,
 	},
 
-	-- ------------------------------------------------------------
-	-- Persistent breakpoints
-	-- ------------------------------------------------------------
+	{
+		"nvim-telescope/telescope-dap.nvim",
+		dependencies = {
+			"nvim-telescope/telescope.nvim",
+			"mfussenegger/nvim-dap",
+		},
+		config = function()
+			local ok, telescope = pcall(require, "telescope")
+			if ok then
+				pcall(telescope.load_extension, "dap")
+			end
+
+			vim.keymap.set("n", "<leader>ds", "<cmd>Telescope dap frames<CR>", { desc = "DAP Stack frames" })
+			vim.keymap.set("n", "<leader>dh", "<cmd>Telescope dap commands<CR>", { desc = "DAP Commands" })
+		end,
+	},
+
 	{
 		"Weissle/persistent-breakpoints.nvim",
-		event = "VeryLazy",
-		opts = {
-			load_breakpoints_event = { "BufReadPost" },
-		},
-		config = function(_, opts)
-			require("persistent-breakpoints").setup(opts)
+		event = "BufReadPost",
+		config = function()
+			local pb = require("persistent-breakpoints")
+			local api = require("persistent-breakpoints.api")
 
-			vim.keymap.set("n", "<leader>dps", function()
-				require("persistent-breakpoints.api").store_breakpoints()
-			end, { desc = "DAP: Store Breakpoints" })
+			pb.setup({
+				load_breakpoints_event = { "BufReadPost" },
+			})
 
-			vim.keymap.set("n", "<leader>dpl", function()
-				require("persistent-breakpoints.api").load_breakpoints()
-			end, { desc = "DAP: Load Breakpoints" })
-
-			vim.keymap.set("n", "<leader>dpc", function()
-				require("persistent-breakpoints.api").clear_all_breakpoints()
-			end, { desc = "DAP: Clear All Breakpoints" })
+			vim.keymap.set("n", "<leader>ds", api.store_breakpoints, { desc = "DAP Save breakpoints" })
+			vim.keymap.set("n", "<leader>dl", api.load_breakpoints, { desc = "DAP Load breakpoints" })
+			vim.keymap.set("n", "<leader>dx", api.clear_all_breakpoints, { desc = "DAP Clear breakpoints" })
 		end,
 	},
 }

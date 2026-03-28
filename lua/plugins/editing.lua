@@ -315,47 +315,75 @@ return {
 			})
 		end,
 	},
+
 	{
 		"folke/flash.nvim",
 		event = "VeryLazy",
 		opts = {
 			modes = {
-				search = { enabled = true },
-				char = { enabled = true },
+				search = {
+					enabled = true,
+				},
+				char = {
+					enabled = true,
+					jump_labels = true,
+				},
 			},
 			search = {
-				max_range = 10,
+				multi_window = true,
+				forward = true,
+				wrap = true,
+				mode = "exact",
+			},
+			jump = {
+				autojump = false,
+				nohlsearch = false,
+			},
+			label = {
+				uppercase = false,
+				exclude = "hjklasdfgyuiopqwertnmzxcvb",
 			},
 		},
 		keys = {
 			{
-				"zk",
+				"s",
 				function()
 					require("flash").jump()
 				end,
-				desc = "Flash: Jump",
+				mode = { "n", "x", "o" },
+				desc = "Flash Jump",
 			},
 			{
-				"zK",
+				"S",
 				function()
 					require("flash").treesitter()
 				end,
-				desc = "Flash: Treesitter jump",
+				mode = { "n", "x", "o" },
+				desc = "Flash Treesitter",
 			},
 			{
-				"<leader>kr",
+				"r",
 				function()
 					require("flash").remote()
 				end,
 				mode = "o",
-				desc = "Flash: Remote (operator)",
+				desc = "Flash Remote",
 			},
 			{
-				"<leader>kv",
+				"R",
 				function()
 					require("flash").treesitter_search()
 				end,
-				desc = "Flash: TS Search",
+				mode = { "o", "x" },
+				desc = "Flash Treesitter Search",
+			},
+			{
+				"<c-s>",
+				function()
+					require("flash").toggle()
+				end,
+				mode = { "c" },
+				desc = "Flash Toggle Search",
 			},
 		},
 	},
@@ -434,41 +462,86 @@ return {
 
 	{
 		"Civitasv/cmake-tools.nvim",
-
-		keys = {
-			{ "<leader>cb", "<cmd>CMakeBuild<cr>", mode = "n", desc = "CMake Build" },
-			{ "<leader>cr", "<cmd>CMakeRun<cr>", mode = "n", desc = "CMake Run" },
+		ft = { "c", "cpp", "h", "hpp", "cmake" },
+		cmd = {
+			"CMakeGenerate",
+			"CMakeBuild",
+			"CMakeBuildCurrentFile",
+			"CMakeRun",
+			"CMakeRunCurrentFile",
+			"CMakeDebug",
+			"CMakeDebugCurrentFile",
+			"CMakeRunTest",
+			"CMakeSelectBuildTarget",
+			"CMakeSelectLaunchTarget",
+			"CMakeSelectConfigurePreset",
+			"CMakeSelectBuildPreset",
+			"CMakeSelectCwd",
+			"CMakeSelectBuildDir",
+			"CMakeOpenCache",
+			"CMakeClean",
+			"CMakeInstall",
+			"CMakeQuickStart",
+			"CMakeLaunchArgs",
 		},
+		keys = {
+			{ "<leader>cg", "<cmd>CMakeGenerate<CR>", desc = "CMake Generate" },
+			{ "<leader>cG", "<cmd>CMakeGenerate!<CR>", desc = "CMake Clean Generate" },
 
+			{ "<leader>cb", "<cmd>CMakeBuild<CR>", desc = "CMake Build" },
+			{ "<leader>cB", "<cmd>CMakeBuild!<CR>", desc = "CMake Clean Build" },
+			{ "<leader>cf", "<cmd>CMakeBuildCurrentFile<CR>", desc = "CMake Build Current File" },
+
+			{ "<leader>cr", "<cmd>CMakeRun<CR>", desc = "CMake Run" },
+			{ "<leader>cF", "<cmd>CMakeRunCurrentFile<CR>", desc = "CMake Run Current File" },
+			{ "<leader>cd", "<cmd>CMakeDebug<CR>", desc = "CMake Debug" },
+			{ "<leader>cD", "<cmd>CMakeDebugCurrentFile<CR>", desc = "CMake Debug Current File" },
+
+			{ "<leader>ct", "<cmd>CMakeRunTest<CR>", desc = "CMake Run Tests" },
+			{ "<leader>ca", "<cmd>CMakeLaunchArgs<CR>", desc = "CMake Launch Args" },
+
+			{ "<leader>cT", "<cmd>CMakeSelectBuildTarget<CR>", desc = "CMake Build Target" },
+			{ "<leader>cL", "<cmd>CMakeSelectLaunchTarget<CR>", desc = "CMake Launch Target" },
+			{ "<leader>cp", "<cmd>CMakeSelectConfigurePreset<CR>", desc = "CMake Configure Preset" },
+			{ "<leader>cP", "<cmd>CMakeSelectBuildPreset<CR>", desc = "CMake Build Preset" },
+
+			{ "<leader>cw", "<cmd>CMakeSelectCwd<CR>", desc = "CMake Workspace Root" },
+			{ "<leader>cm", "<cmd>CMakeSelectBuildDir<CR>", desc = "CMake Build Directory" },
+			{ "<leader>cc", "<cmd>CMakeOpenCache<CR>", desc = "CMake Open Cache" },
+			{ "<leader>ck", "<cmd>CMakeClean<CR>", desc = "CMake Clean" },
+			{ "<leader>ci", "<cmd>CMakeInstall<CR>", desc = "CMake Install" },
+			{ "<leader>cq", "<cmd>CMakeQuickStart<CR>", desc = "CMake Quick Start" },
+		},
 		opts = function()
 			local osys = require("cmake-tools.osys")
-			require("cmake-tools").setup({
-				cmake_command = "cmake", -- this is used to specify cmake command path
-				ctest_command = "ctest", -- this is used to specify ctest command path
+
+			return {
+				cmake_command = "cmake",
+				ctest_command = "ctest",
+				ctest_show_labels = true,
+
 				cmake_use_preset = true,
-				cmake_regenerate_on_save = true, -- auto generate when save CMakeLists.txt
-				cmake_generate_options = { "-DCMAKE_EXPORT_COMPILE_COMMANDS=1" }, -- this will be passed when invoke `CMakeGenerate`
-				cmake_build_options = {}, -- this will be passed when invoke `CMakeBuild`
+				cmake_regenerate_on_save = true,
+
+				cmake_generate_options = {
+					"-DCMAKE_EXPORT_COMPILE_COMMANDS=1",
+				},
+
+				cmake_build_options = {},
+
 				cmake_build_directory = function()
 					if osys.iswin32 then
-						return "out\\${variant:buildType}"
+						return "out\\build\\${variant:buildType}"
 					end
-					return "out/${variant:buildType}"
-				end, -- this is used to specify generate directory for cmake, allows macro expansion, can be a string or a function returning the string, relative to cwd.
+					return "out/build/${variant:buildType}"
+				end,
+
+				-- Voor clangd/ccls is dit vaak netter dan cwd-softlinks.
 				cmake_compile_commands_options = {
-					action = "soft_link", -- available options: soft_link, copy, lsp, none
-					-- soft_link: this will automatically make a soft link from compile commands file to target
-					-- copy:      this will automatically copy compile commands file to target
-					-- lsp:       this will automatically set compile commands file location using lsp
-					-- none:      this will make this option ignored
-					target = vim.loop.cwd(), -- path to directory, this is used only if action == "soft_link" or action == "copy"
+					action = "lsp",
 				},
-				cmake_kits_path = nil, -- this is used to specify global cmake kits path, see CMakeKits for detailed usage
-				cmake_variants_message = {
-					short = { show = true }, -- whether to show short message
-					long = { show = true, max_length = 40 }, -- whether to show long message
-				},
-				cmake_dap_configuration = { -- debug settings for cmake
+
+				cmake_dap_configuration = {
 					name = "cpp",
 					type = "codelldb",
 					request = "launch",
@@ -476,100 +549,47 @@ return {
 					runInTerminal = true,
 					console = "integratedTerminal",
 				},
-				cmake_executor = { -- executor to use
-					name = "terminal", -- name of the executor
-					opts = {}, -- the options the executor will get, possible values depend on the executor type. See `default_opts` for possible values.
-					default_opts = { -- a list of default and possible values for executors
-						quickfix = {
-							show = "always", -- "always", "only_on_error"
-							position = "belowright", -- "vertical", "horizontal", "leftabove", "aboveleft", "rightbelow", "belowright", "topleft", "botright", use `:h vertical` for example to see help on them
-							size = 10,
-							encoding = "utf-8", -- if encoding is not "utf-8", it will be converted to "utf-8" using `vim.fn.iconv`
-							auto_close_when_success = true, -- typically, you can use it with the "always" option; it will auto-close the quickfix buffer if the execution is successful.
-						},
-						overseer = {
-							new_task_opts = {
-								strategy = {
-									"terminal",
-									direction = "horizontal",
-									auto_scroll = true,
-									quit_on_exit = "success",
-								},
-							}, -- options to pass into the `overseer.new_task` command
-							on_new_task = function(task)
-								require("overseer").open({ enter = false, direction = "right" })
-							end, -- a function that gets overseer.Task when it is created, before calling `task:start`
-						},
-						terminal = {
-							name = "Main Terminal",
-							prefix_name = "[CMakeTools]: ", -- This must be included and must be unique, otherwise the terminals will not work. Do not use a simple spacebar " ", or any generic name
-							split_direction = "horizontal", -- "horizontal", "vertical"
-							split_size = 11,
 
-							-- Window handling
-							single_terminal_per_instance = true, -- Single viewport, multiple windows
-							single_terminal_per_tab = true, -- Single viewport per tab
-							keep_terminal_static_location = true, -- Static location of the viewport if avialable
-							auto_resize = true, -- Resize the terminal if it already exists
-
-							-- Running Tasks
-							start_insert = false, -- If you want to enter terminal with :startinsert upon using :CMakeRun
-							focus = false, -- Focus on terminal when cmake task is launched.
-							do_not_add_newline = false, -- Do not hit enter on the command inserted when using :CMakeRun, allowing a chance to review or modify the command before hitting enter.
-						}, -- terminal executor uses the values in cmake_terminal
+				-- Build/generate liever quickfix; run/debug liever terminal.
+				cmake_executor = {
+					name = "quickfix",
+					opts = {
+						show = "only_on_error",
+						position = "belowright",
+						size = 10,
+						encoding = "utf-8",
+						auto_close_when_success = true,
 					},
 				},
-				cmake_runner = { -- runner to use
-					name = "terminal", -- name of the runner
-					opts = {}, -- the options the runner will get, possible values depend on the runner type. See `default_opts` for possible values.
-					default_opts = { -- a list of default and possible values for runners
-						quickfix = {
-							show = "always", -- "always", "only_on_error"
-							position = "belowright", -- "bottom", "top"
-							size = 10,
-							encoding = "utf-8",
-							auto_close_when_success = true, -- typically, you can use it with the "always" option; it will auto-close the quickfix buffer if the execution is successful.
-						},
-						overseer = {
-							new_task_opts = {
-								strategy = {
-									"toggleterm",
-									direction = "horizontal",
-									autos_croll = true,
-									quit_on_exit = "success",
-								},
-							}, -- options to pass into the `overseer.new_task` command
-							on_new_task = function(task) end, -- a function that gets overseer.Task when it is created, before calling `task:start`
-						},
-						terminal = {
-							name = "Main Terminal",
-							prefix_name = "[CMakeTools]: ", -- This must be included and must be unique, otherwise the terminals will not work. Do not use a simple spacebar " ", or any generic name
-							split_direction = "horizontal", -- "horizontal", "vertical"
-							split_size = 11,
 
-							-- Window handling
-							single_terminal_per_instance = true, -- Single viewport, multiple windows
-							single_terminal_per_tab = true, -- Single viewport per tab
-							keep_terminal_static_location = true, -- Static location of the viewport if avialable
-							auto_resize = true, -- Resize the terminal if it already exists
-
-							-- Running Tasks
-							start_insert = false, -- If you want to enter terminal with :startinsert upon using :CMakeRun
-							focus = false, -- Focus on terminal when cmake task is launched.
-							do_not_add_newline = false, -- Do not hit enter on the command inserted when using :CMakeRun, allowing a chance to review or modify the command before hitting enter.
-							use_shell_alias = false, -- Hide the verbose command wrapper by using a shell alias, showing only the program's output (currently not supported on Windows)
-						},
+				cmake_runner = {
+					name = "terminal",
+					opts = {
+						name = "CMake Run",
+						prefix_name = "[CMakeTools] ",
+						split_direction = "horizontal",
+						split_size = 12,
+						single_terminal_per_instance = true,
+						single_terminal_per_tab = true,
+						keep_terminal_static_location = true,
+						auto_resize = true,
+						start_insert = false,
+						focus = false,
+						do_not_add_newline = false,
+						use_shell_alias = false,
 					},
 				},
+
 				cmake_notifications = {
 					runner = { enabled = true },
 					executor = { enabled = true },
-					spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }, -- icons used for progress display
-					refresh_rate_ms = 100, -- how often to iterate icons
+					spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+					refresh_rate_ms = 100,
 				},
-				cmake_virtual_text_support = true, -- Show the target related to current file using virtual text (at right corner)
-				cmake_use_scratch_buffer = false, -- A buffer that shows what cmake-tools has done
-			})
+
+				cmake_virtual_text_support = true,
+				cmake_use_scratch_buffer = false,
+			}
 		end,
 	},
 }
