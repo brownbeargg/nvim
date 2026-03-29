@@ -52,11 +52,14 @@ return {
 			end
 
 			local function file_exists(path)
-				return path and uv.fs_stat(path) ~= nil
+				return type(path) == "string" and uv.fs_stat(path) ~= nil
 			end
 
 			local function dir_exists(path)
-				local stat = path and uv.fs_stat(path)
+				if type(path) ~= "string" then
+					return false
+				end
+				local stat = uv.fs_stat(path)
 				return stat and stat.type == "directory"
 			end
 
@@ -66,7 +69,7 @@ return {
 
 			local function project_root()
 				local buf = vim.api.nvim_buf_get_name(0)
-				local start = (buf ~= "" and vim.fs.dirname(buf)) or vim.loop.cwd()
+				local start = (buf ~= "" and vim.fs.dirname(buf)) or uv.cwd()
 
 				local root = vim.fs.root(start, {
 					"CMakePresets.json",
@@ -74,11 +77,19 @@ return {
 					".git",
 				})
 
-				return normalize(root or vim.loop.cwd())
+				return normalize(root or uv.cwd())
 			end
 
-			local state_file = path_join(vim.fn.stdpath("state"), "dap_cpp_state.json")
-			local state = {
+			local function project_id()
+				local root = project_root() or "default"
+				return root:gsub("[:/\\]", "_")
+			end
+
+			local function state_file()
+				return path_join(vim.fn.stdpath("state"), "dap_cpp_state_" .. project_id() .. ".json")
+			end
+
+			local default_state = {
 				executable = nil,
 				cwd = nil,
 				args = {},
@@ -87,12 +98,27 @@ return {
 				target = nil,
 			}
 
+			local state = vim.deepcopy(default_state)
+			local loaded_project = nil
+
+			local function reset_state()
+				state = {
+					executable = nil,
+					cwd = nil,
+					args = {},
+					env = vim.empty_dict(),
+					build_dir = nil,
+					target = nil,
+				}
+			end
+
 			local function load_state()
-				if not file_exists(state_file) then
+				local file = state_file()
+				if not file_exists(file) then
 					return
 				end
 
-				local ok_read, lines = pcall(vim.fn.readfile, state_file)
+				local ok_read, lines = pcall(vim.fn.readfile, file)
 				if not ok_read or not lines then
 					return
 				end
@@ -112,16 +138,28 @@ return {
 				end
 
 				vim.fn.mkdir(vim.fn.stdpath("state"), "p")
-				pcall(vim.fn.writefile, { encoded }, state_file)
+				pcall(vim.fn.writefile, { encoded }, state_file())
 			end
 
-			load_state()
+			local function ensure_project_state_loaded()
+				local root = project_root() or "default"
+				if loaded_project == root then
+					return
+				end
+
+				reset_state()
+				load_state()
+				loaded_project = root
+			end
 
 			local function default_build_dir()
+				ensure_project_state_loaded()
 				return normalize(path_join(project_root(), "build"))
 			end
 
 			local function choose_build_dir()
+				ensure_project_state_loaded()
+
 				local current = state.build_dir
 				if current and dir_exists(current) then
 					return current
@@ -141,7 +179,9 @@ return {
 			end
 
 			local function choose_executable()
-				local initial = state.executable or project_root() .. (is_windows() and "\\" or "/")
+				ensure_project_state_loaded()
+
+				local initial = state.executable or (project_root() .. (is_windows() and "\\" or "/"))
 				local picked = vim.fn.input("Executable: ", initial, "file")
 				picked = normalize(picked)
 
@@ -161,6 +201,8 @@ return {
 			end
 
 			local function input_args()
+				ensure_project_state_loaded()
+
 				local initial = table.concat(state.args or {}, " ")
 				local raw = vim.fn.input("Args: ", initial)
 
@@ -175,7 +217,6 @@ return {
 					return {}
 				end
 
-				-- Simpel en voorspelbaar: geen shell-quote parser.
 				local args = vim.split(raw, "%s+", { trimempty = true })
 				state.args = args
 				save_state()
@@ -183,6 +224,8 @@ return {
 			end
 
 			local function input_env()
+				ensure_project_state_loaded()
+
 				local items = {}
 				for k, v in pairs(state.env or {}) do
 					items[#items + 1] = string.format("%s=%s", k, v)
@@ -215,6 +258,8 @@ return {
 			end
 
 			local function choose_cwd()
+				ensure_project_state_loaded()
+
 				local root = project_root()
 				local exe_dir = state.executable and vim.fn.fnamemodify(state.executable, ":p:h") or root
 				local build_dir = state.build_dir or default_build_dir()
@@ -251,13 +296,28 @@ return {
 			end
 
 			local function current_cwd()
+				ensure_project_state_loaded()
+
 				if state.cwd and dir_exists(state.cwd) then
 					return state.cwd
 				end
+
 				return project_root()
 			end
 
+			local function ensure_executable()
+				ensure_project_state_loaded()
+
+				if state.executable and file_exists(state.executable) then
+					return state.executable
+				end
+
+				return choose_executable()
+			end
+
 			local function cmake_build(target)
+				ensure_project_state_loaded()
+
 				if not executable_exists("cmake") then
 					notify("cmake niet gevonden in PATH", vim.log.levels.ERROR)
 					return false
@@ -289,37 +349,42 @@ return {
 			end
 
 			local function build_default_target()
+				ensure_project_state_loaded()
+
 				local target = vim.fn.input("Target (leeg = default): ", state.target or "")
 				target = vim.trim(target or "")
 				if target == "" then
 					target = nil
 				end
+
 				return cmake_build(target)
 			end
 
-			local function ensure_executable()
-				if state.executable and file_exists(state.executable) then
-					return state.executable
-				end
-				return choose_executable()
-			end
-
 			local function build_and_pick_executable()
+				ensure_project_state_loaded()
+
 				local ok = build_default_target()
 				if not ok then
 					return nil
 				end
+
 				return ensure_executable()
 			end
 
 			local function validation_env()
+				ensure_project_state_loaded()
+
 				local env = vim.tbl_extend("force", {}, state.env or {})
 				env.VK_INSTANCE_LAYERS = "VK_LAYER_KHRONOS_validation"
+
 				if os.getenv("VK_LAYER_PATH") then
 					env.VK_LAYER_PATH = os.getenv("VK_LAYER_PATH")
 				end
+
 				return env
 			end
+
+			ensure_project_state_loaded()
 
 			local mason_root = path_join(vim.fn.stdpath("data"), "mason", "packages", "codelldb", "extension")
 			local adapter = path_join(mason_root, "adapter", is_windows() and "codelldb.exe" or "codelldb")
@@ -349,9 +414,11 @@ return {
 						return current_cwd()
 					end,
 					args = function()
+						ensure_project_state_loaded()
 						return state.args or {}
 					end,
 					env = function()
+						ensure_project_state_loaded()
 						return state.env or {}
 					end,
 					runInTerminal = true,
@@ -368,9 +435,11 @@ return {
 						return current_cwd()
 					end,
 					args = function()
+						ensure_project_state_loaded()
 						return state.args or {}
 					end,
 					env = function()
+						ensure_project_state_loaded()
 						return state.env or {}
 					end,
 					runInTerminal = true,
@@ -387,6 +456,7 @@ return {
 						return current_cwd()
 					end,
 					args = function()
+						ensure_project_state_loaded()
 						return state.args or {}
 					end,
 					env = validation_env,
@@ -500,7 +570,7 @@ return {
 			map("n", "<leader>dp", function()
 				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
 			end, { desc = "DAP Predicate breakpoint" })
-			map("n", "<leader>dl", function()
+			map("n", "<leader>du", function()
 				dap.set_breakpoint(nil, nil, vim.fn.input("Log point: "))
 			end, { desc = "DAP Log point" })
 			map("n", "<leader>dj", dap.down, { desc = "DAP Down stack" })
@@ -520,7 +590,7 @@ return {
 				pcall(telescope.load_extension, "dap")
 			end
 
-			vim.keymap.set("n", "<leader>ds", "<cmd>Telescope dap frames<CR>", { desc = "DAP Stack frames" })
+			vim.keymap.set("n", "<leader>do", "<cmd>Telescope dap frames<CR>", { desc = "DAP Stack frames" })
 			vim.keymap.set("n", "<leader>dh", "<cmd>Telescope dap commands<CR>", { desc = "DAP Commands" })
 		end,
 	},

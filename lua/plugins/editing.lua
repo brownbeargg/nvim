@@ -320,28 +320,21 @@ return {
 		"folke/flash.nvim",
 		event = "VeryLazy",
 		opts = {
+			jump = {
+				autojump = false,
+			},
+			label = {
+				uppercase = false,
+				current = true,
+				after = true,
+				before = false,
+				exclude = "hjkl",
+			},
 			modes = {
-				search = {
-					enabled = true,
-				},
 				char = {
 					enabled = true,
 					jump_labels = true,
 				},
-			},
-			search = {
-				multi_window = true,
-				forward = true,
-				wrap = true,
-				mode = "exact",
-			},
-			jump = {
-				autojump = false,
-				nohlsearch = false,
-			},
-			label = {
-				uppercase = false,
-				exclude = "hjklasdfgyuiopqwertnmzxcvb",
 			},
 		},
 		keys = {
@@ -361,32 +354,9 @@ return {
 				mode = { "n", "x", "o" },
 				desc = "Flash Treesitter",
 			},
-			{
-				"r",
-				function()
-					require("flash").remote()
-				end,
-				mode = "o",
-				desc = "Flash Remote",
-			},
-			{
-				"R",
-				function()
-					require("flash").treesitter_search()
-				end,
-				mode = { "o", "x" },
-				desc = "Flash Treesitter Search",
-			},
-			{
-				"<c-s>",
-				function()
-					require("flash").toggle()
-				end,
-				mode = { "c" },
-				desc = "Flash Toggle Search",
-			},
 		},
 	},
+
 	{
 		"gbprod/yanky.nvim",
 		dependencies = {
