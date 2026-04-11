@@ -454,6 +454,7 @@ return {
 			"CMakeQuickStart",
 			"CMakeLaunchArgs",
 		},
+
 		keys = {
 			{ "<leader>cg", "<cmd>CMakeGenerate<CR>", desc = "CMake Generate" },
 			{ "<leader>cG", "<cmd>CMakeGenerate!<CR>", desc = "CMake Clean Generate" },
@@ -482,6 +483,7 @@ return {
 			{ "<leader>ci", "<cmd>CMakeInstall<CR>", desc = "CMake Install" },
 			{ "<leader>cq", "<cmd>CMakeQuickStart<CR>", desc = "CMake Quick Start" },
 		},
+
 		opts = function()
 			local osys = require("cmake-tools.osys")
 
@@ -506,7 +508,6 @@ return {
 					return "out/build/${variant:buildType}"
 				end,
 
-				-- Voor clangd/ccls is dit vaak netter dan cwd-softlinks.
 				cmake_compile_commands_options = {
 					action = "lsp",
 				},
@@ -520,15 +521,21 @@ return {
 					console = "integratedTerminal",
 				},
 
-				-- Build/generate liever quickfix; run/debug liever terminal.
 				cmake_executor = {
-					name = "quickfix",
+					name = "terminal",
 					opts = {
-						show = "only_on_error",
-						position = "belowright",
-						size = 10,
-						encoding = "utf-8",
-						auto_close_when_success = true,
+						name = "CMake Build",
+						prefix_name = "[CMakeTools] ",
+						split_direction = "horizontal",
+						split_size = 12,
+						single_terminal_per_instance = true,
+						single_terminal_per_tab = true,
+						keep_terminal_static_location = true,
+						auto_resize = true,
+						start_insert = false,
+						focus = false,
+						do_not_add_newline = false,
+						use_shell_alias = false,
 					},
 				},
 

@@ -28,6 +28,8 @@ return {
 		config = function()
 			local dap = require("dap")
 			local dapui = require("dapui")
+			local widgets = require("dap.ui.widgets")
+			local pb_api = require("persistent-breakpoints.api")
 			local uv = vim.uv or vim.loop
 
 			local function notify(msg, level)
@@ -102,14 +104,7 @@ return {
 			local loaded_project = nil
 
 			local function reset_state()
-				state = {
-					executable = nil,
-					cwd = nil,
-					args = {},
-					env = vim.empty_dict(),
-					build_dir = nil,
-					target = nil,
-				}
+				state = vim.deepcopy(default_state)
 			end
 
 			local function load_state()
@@ -200,6 +195,21 @@ return {
 				return picked
 			end
 
+			local function parse_args(raw)
+				raw = vim.trim(raw or "")
+				if raw == "" then
+					return {}
+				end
+
+				local args = {}
+				for part in raw:gmatch([["[^"]*"|'[^']*'|%S+]]) do
+					part = part:gsub([[^"(.*)"$]], "%1")
+					part = part:gsub([[^'(.*)'$]], "%1")
+					table.insert(args, part)
+				end
+				return args
+			end
+
 			local function input_args()
 				ensure_project_state_loaded()
 
@@ -210,14 +220,7 @@ return {
 					return state.args or {}
 				end
 
-				raw = vim.trim(raw)
-				if raw == "" then
-					state.args = {}
-					save_state()
-					return {}
-				end
-
-				local args = vim.split(raw, "%s+", { trimempty = true })
+				local args = parse_args(raw)
 				state.args = args
 				save_state()
 				return args
@@ -315,60 +318,104 @@ return {
 				return choose_executable()
 			end
 
-			local function cmake_build(target)
+			local function current_args()
+				ensure_project_state_loaded()
+				return state.args or {}
+			end
+
+			local function current_env()
+				ensure_project_state_loaded()
+				return state.env or {}
+			end
+
+			local function build_target_name()
+				ensure_project_state_loaded()
+
+				local target = vim.fn.input("Target (empty = default): ", state.target or "")
+				target = vim.trim(target or "")
+
+				if target == "" then
+					state.target = nil
+					save_state()
+					return nil
+				end
+
+				state.target = target
+				save_state()
+				return target
+			end
+
+			local function cmake_build(target, on_exit)
 				ensure_project_state_loaded()
 
 				if not executable_exists("cmake") then
 					notify("cmake niet gevonden in PATH", vim.log.levels.ERROR)
-					return false
+					if on_exit then
+						on_exit(false)
+					end
+					return
 				end
 
 				local build_dir = choose_build_dir()
 				if not build_dir then
-					return false
+					if on_exit then
+						on_exit(false)
+					end
+					return
 				end
 
 				local cmd = { "cmake", "--build", build_dir }
 				if target and target ~= "" then
 					vim.list_extend(cmd, { "--target", target })
 					state.target = target
+					save_state()
 				end
 
-				save_state()
-				notify("Build: " .. table.concat(cmd, " "))
+				notify("Build gestart: " .. table.concat(cmd, " "))
 
-				local result = vim.system(cmd, { text = true }):wait()
-				if result.code ~= 0 then
-					local output = (result.stderr ~= "" and result.stderr) or result.stdout or "Onbekende build fout"
-					notify(output, vim.log.levels.ERROR)
-					return false
-				end
-
-				notify("Build gelukt")
-				return true
-			end
-
-			local function build_default_target()
-				ensure_project_state_loaded()
-
-				local target = vim.fn.input("Target (leeg = default): ", state.target or "")
-				target = vim.trim(target or "")
-				if target == "" then
-					target = nil
-				end
-
-				return cmake_build(target)
-			end
-
-			local function build_and_pick_executable()
-				ensure_project_state_loaded()
-
-				local ok = build_default_target()
-				if not ok then
-					return nil
-				end
-
-				return ensure_executable()
+				vim.fn.jobstart(cmd, {
+					stdout_buffered = false,
+					stderr_buffered = false,
+					on_stdout = function(_, data)
+						if not data then
+							return
+						end
+						for _, line in ipairs(data) do
+							if line ~= "" then
+								vim.schedule(function()
+									vim.api.nvim_echo({ { line } }, false, {})
+								end)
+							end
+						end
+					end,
+					on_stderr = function(_, data)
+						if not data then
+							return
+						end
+						for _, line in ipairs(data) do
+							if line ~= "" then
+								vim.schedule(function()
+									vim.api.nvim_echo({ { line, "WarningMsg" } }, false, {})
+								end)
+							end
+						end
+					end,
+					on_exit = function(_, code)
+						vim.schedule(function()
+							if code == 0 then
+								notify("Build gelukt")
+								if on_exit then
+									on_exit(true)
+								end
+							else
+								notify("Build gefaald", vim.log.levels.ERROR)
+								if on_exit then
+									on_exit(false)
+								end
+							end
+						end)
+					end,
+				})
 			end
 
 			local function validation_env()
@@ -402,75 +449,32 @@ return {
 				},
 			}
 
+			local launch_base = {
+				type = "codelldb",
+				request = "launch",
+				cwd = current_cwd,
+				args = current_args,
+				runInTerminal = true,
+				stopOnEntry = false,
+			}
+
 			dap.configurations.cpp = {
-				{
+				vim.tbl_extend("force", {}, launch_base, {
 					name = "Launch executable",
-					type = "codelldb",
-					request = "launch",
-					program = function()
-						return ensure_executable()
-					end,
-					cwd = function()
-						return current_cwd()
-					end,
-					args = function()
-						ensure_project_state_loaded()
-						return state.args or {}
-					end,
-					env = function()
-						ensure_project_state_loaded()
-						return state.env or {}
-					end,
-					runInTerminal = true,
-					stopOnEntry = false,
-				},
-				{
-					name = "Build then launch",
-					type = "codelldb",
-					request = "launch",
-					program = function()
-						return build_and_pick_executable()
-					end,
-					cwd = function()
-						return current_cwd()
-					end,
-					args = function()
-						ensure_project_state_loaded()
-						return state.args or {}
-					end,
-					env = function()
-						ensure_project_state_loaded()
-						return state.env or {}
-					end,
-					runInTerminal = true,
-					stopOnEntry = false,
-				},
-				{
+					program = ensure_executable,
+					env = current_env,
+				}),
+				vim.tbl_extend("force", {}, launch_base, {
 					name = "Launch with Vulkan validation",
-					type = "codelldb",
-					request = "launch",
-					program = function()
-						return ensure_executable()
-					end,
-					cwd = function()
-						return current_cwd()
-					end,
-					args = function()
-						ensure_project_state_loaded()
-						return state.args or {}
-					end,
+					program = ensure_executable,
 					env = validation_env,
-					runInTerminal = true,
-					stopOnEntry = false,
-				},
+				}),
 				{
 					name = "Attach process",
 					type = "codelldb",
 					request = "attach",
 					pid = require("dap.utils").pick_process,
-					cwd = function()
-						return current_cwd()
-					end,
+					cwd = current_cwd,
 				},
 			}
 
@@ -485,20 +489,19 @@ return {
 				layouts = {
 					{
 						elements = {
-							{ id = "scopes", size = 0.45 },
+							{ id = "scopes", size = 0.50 },
 							{ id = "stacks", size = 0.20 },
 							{ id = "breakpoints", size = 0.15 },
-							{ id = "watches", size = 0.20 },
+							{ id = "watches", size = 0.15 },
 						},
 						size = 42,
 						position = "left",
 					},
 					{
 						elements = {
-							{ id = "repl", size = 0.45 },
-							{ id = "console", size = 0.55 },
+							{ id = "repl", size = 1.0 },
 						},
-						size = 0.28,
+						size = 0.25,
 						position = "bottom",
 					},
 				},
@@ -508,13 +511,13 @@ return {
 				},
 			})
 
-			dap.listeners.after.event_initialized["dapui_auto"] = function()
+			dap.listeners.after.event_initialized["dapui_auto_open"] = function()
 				dapui.open()
 			end
-			dap.listeners.before.event_terminated["dapui_auto"] = function()
+			dap.listeners.before.event_terminated["dapui_auto_close"] = function()
 				dapui.close()
 			end
-			dap.listeners.before.event_exited["dapui_auto"] = function()
+			dap.listeners.before.event_exited["dapui_auto_close"] = function()
 				dapui.close()
 			end
 
@@ -524,57 +527,86 @@ return {
 			})
 
 			local map = vim.keymap.set
-			map("n", "<F1>", dap.repl.open, { desc = "DAP REPL" })
-			map("n", "<F2>", dapui.eval, { desc = "DAP Eval" })
-			map("n", "<F3>", dap.restart, { desc = "DAP Restart" })
+
+			-- Core debugging
+			map("n", "<F1>", dap.step_into, { desc = "DAP Step into" })
+			map("n", "<F2>", dap.step_out, { desc = "DAP Step out" })
+			map("n", "<F3>", dap.step_over, { desc = "DAP Step over" })
+			map("n", "<F4>", function()
+				dapui.float_element("watches", { enter = true })
+			end, { desc = "DAP watches" })
 			map("n", "<F5>", dap.continue, { desc = "DAP Continue" })
 			map("n", "<F6>", dap.run_last, { desc = "DAP Run last" })
-			map("n", "<F7>", dapui.toggle, { desc = "DAP UI toggle" })
-			map("n", "<F8>", dap.toggle_breakpoint, { desc = "DAP Breakpoint" })
-			map("n", "<F9>", dap.step_over, { desc = "DAP Step over" })
-			map("n", "<F10>", dap.step_into, { desc = "DAP Step into" })
-			map("n", "<F11>", dap.step_out, { desc = "DAP Step out" })
-			map("n", "<F12>", dap.terminate, { desc = "DAP Terminate" })
+			map("n", "<F8>", pb_api.toggle_breakpoint, { desc = "DAP Breakpoint" })
 
+			-- Debug UI / inspect
+			map("n", "<leader>du", dapui.toggle, { desc = "DAP UI toggle" })
 			map("n", "<leader>dr", dap.repl.open, { desc = "DAP REPL" })
-			map("n", "<leader>dt", dapui.toggle, { desc = "DAP Toggle UI" })
-			map("n", "<leader>db", dap.toggle_breakpoint, { desc = "DAP Breakpoint" })
-			map({ "n", "v" }, "<leader>dw", function()
-				dapui.eval()
-			end, { desc = "DAP Word/selection eval" })
-			map("n", "<leader>dq", dap.terminate, { desc = "DAP Quit" })
+
+			map({ "n", "v" }, "<leader>de", function()
+				widgets.hover()
+			end, { desc = "DAP Hover eval" })
+
+			map({ "n", "v" }, "<leader>dE", function()
+				widgets.preview()
+			end, { desc = "DAP Preview eval" })
+
+			map("n", "<leader>ds", function()
+				widgets.centered_float(widgets.scopes)
+			end, { desc = "DAP Scopes float" })
+
+			-- Breakpoints / flow
+			map("n", "<leader>db", pb_api.set_conditional_breakpoint, { desc = "DAP Conditional breakpoint" })
+			map("n", "<leader>dl", pb_api.set_log_point, { desc = "DAP Log point" })
+
+			map("n", "<leader>dc", dap.run_to_cursor, { desc = "DAP Run to cursor" })
+
+			-- Stack navigation
+			map("n", "<leader>dj", dap.down, { desc = "DAP Down stack" })
+			map("n", "<leader>dk", dap.up, { desc = "DAP Up stack" })
+			map("n", "<leader>d.", dap.focus_frame, { desc = "DAP Focus frame" })
+
+			-- Session config
 			map("n", "<leader>df", function()
 				local exe = choose_executable()
 				if exe then
 					notify("Executable: " .. exe)
 				end
-			end, { desc = "DAP File executable" })
-			map("n", "<leader>dg", function()
-				local cwd = choose_cwd()
-				if cwd then
-					notify("CWD: " .. cwd)
-				end
-			end, { desc = "DAP Ground/CWD" })
+			end, { desc = "DAP Executable" })
+
 			map("n", "<leader>da", function()
 				input_args()
 			end, { desc = "DAP Args" })
+
 			map("n", "<leader>dv", function()
 				input_env()
-			end, { desc = "DAP Variables/env" })
-			map("n", "<leader>dm", function()
-				choose_build_dir()
-			end, { desc = "DAP Make/build dir" })
-			map("n", "<leader>dn", function()
-				build_default_target()
-			end, { desc = "DAP Ninja/CMake build" })
-			map("n", "<leader>dp", function()
-				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
-			end, { desc = "DAP Predicate breakpoint" })
-			map("n", "<leader>du", function()
-				dap.set_breakpoint(nil, nil, vim.fn.input("Log point: "))
-			end, { desc = "DAP Log point" })
-			map("n", "<leader>dj", dap.down, { desc = "DAP Down stack" })
-			map("n", "<leader>dk", dap.up, { desc = "DAP Up stack" })
+			end, { desc = "DAP Env" })
+
+			map("n", "<leader>d?", function()
+				local bps = require("dap.breakpoints").get()
+				local qf = {}
+				for bufnr, buf_bps in pairs(bps) do
+					for _, bp in ipairs(buf_bps) do
+						table.insert(qf, {
+							bufnr = bufnr,
+							lnum = bp.line,
+							text = "Breakpoint",
+						})
+					end
+				end
+				vim.fn.setqflist(qf)
+				vim.cmd("copen")
+			end, { desc = "List breakpoints (quickfix)" })
+
+			vim.keymap.set("n", "<leader>dO", "<cmd>Telescope dap configurations<CR>", {
+				desc = "DAP Configurations",
+			})
+
+			vim.keymap.set("n", "<leader>dV", "<cmd>Telescope dap variables<CR>", {
+				desc = "DAP Variables",
+			})
+			map("n", "<leader>dq", dap.terminate, { desc = "DAP Quit" })
+			map("n", "<leader>dR", dap.restart, { desc = "DAP Restart" })
 		end,
 	},
 
@@ -597,7 +629,7 @@ return {
 
 	{
 		"Weissle/persistent-breakpoints.nvim",
-		event = "BufReadPost",
+		lazy = false,
 		config = function()
 			local pb = require("persistent-breakpoints")
 			local api = require("persistent-breakpoints.api")
@@ -606,9 +638,9 @@ return {
 				load_breakpoints_event = { "BufReadPost" },
 			})
 
-			vim.keymap.set("n", "<leader>ds", api.store_breakpoints, { desc = "DAP Save breakpoints" })
-			vim.keymap.set("n", "<leader>dl", api.load_breakpoints, { desc = "DAP Load breakpoints" })
-			vim.keymap.set("n", "<leader>dx", api.clear_all_breakpoints, { desc = "DAP Clear breakpoints" })
+			vim.keymap.set("n", "<leader>dS", api.store_breakpoints, { desc = "DAP Save breakpoints" })
+			vim.keymap.set("n", "<leader>dL", api.load_breakpoints, { desc = "DAP Load breakpoints" })
+			vim.keymap.set("n", "<leader>dX", api.clear_all_breakpoints, { desc = "DAP Clear breakpoints" })
 		end,
 	},
 }
