@@ -29,7 +29,6 @@ return {
 			local dap = require("dap")
 			local dapui = require("dapui")
 			local widgets = require("dap.ui.widgets")
-			local pb_api = require("persistent-breakpoints.api")
 			local uv = vim.uv or vim.loop
 
 			local function notify(msg, level)
@@ -537,7 +536,6 @@ return {
 			end, { desc = "DAP watches" })
 			map("n", "<F5>", dap.continue, { desc = "DAP Continue" })
 			map("n", "<F6>", dap.run_last, { desc = "DAP Run last" })
-			map("n", "<F8>", pb_api.toggle_breakpoint, { desc = "DAP Breakpoint" })
 
 			-- Debug UI / inspect
 			map("n", "<leader>du", dapui.toggle, { desc = "DAP UI toggle" })
@@ -556,9 +554,6 @@ return {
 			end, { desc = "DAP Scopes float" })
 
 			-- Breakpoints / flow
-			map("n", "<leader>db", pb_api.set_conditional_breakpoint, { desc = "DAP Conditional breakpoint" })
-			map("n", "<leader>dl", pb_api.set_log_point, { desc = "DAP Log point" })
-
 			map("n", "<leader>dc", dap.run_to_cursor, { desc = "DAP Run to cursor" })
 
 			-- Stack navigation
@@ -638,9 +633,15 @@ return {
 				load_breakpoints_event = { "BufReadPost" },
 			})
 
-			vim.keymap.set("n", "<leader>dS", api.store_breakpoints, { desc = "DAP Save breakpoints" })
-			vim.keymap.set("n", "<leader>dL", api.load_breakpoints, { desc = "DAP Load breakpoints" })
-			vim.keymap.set("n", "<leader>dX", api.clear_all_breakpoints, { desc = "DAP Clear breakpoints" })
+			local map = vim.keymap.set
+
+			map("n", "<F8>", api.toggle_breakpoint, { desc = "DAP Breakpoint" })
+			map("n", "<leader>db", api.set_conditional_breakpoint, { desc = "DAP Conditional breakpoint" })
+			map("n", "<leader>dl", api.set_log_point, { desc = "DAP Log point" })
+
+			map("n", "<leader>dS", api.store_breakpoints, { desc = "DAP Save breakpoints" })
+			map("n", "<leader>dL", api.load_breakpoints, { desc = "DAP Load breakpoints" })
+			map("n", "<leader>dX", api.clear_all_breakpoints, { desc = "DAP Clear breakpoints" })
 		end,
 	},
 }

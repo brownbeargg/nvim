@@ -1,6 +1,7 @@
 {
     "diagnostics.globals": [
         "vim",
-        "j"
+        "j",
+        "pb_api"
     ]
 }
