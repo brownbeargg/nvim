@@ -498,7 +498,8 @@ return {
 					},
 					{
 						elements = {
-							{ id = "repl", size = 1.0 },
+							{ id = "console", size = 0.6 },
+							{ id = "repl", size = 0.4 },
 						},
 						size = 0.25,
 						position = "bottom",
@@ -540,6 +541,10 @@ return {
 			-- Debug UI / inspect
 			map("n", "<leader>du", dapui.toggle, { desc = "DAP UI toggle" })
 			map("n", "<leader>dr", dap.repl.open, { desc = "DAP REPL" })
+
+			map("n", "<leader>dz", function()
+				require("dapui").toggle({ layout = 2 })
+			end, { desc = "DAP Console toggle" })
 
 			map({ "n", "v" }, "<leader>de", function()
 				widgets.hover()

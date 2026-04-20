@@ -333,7 +333,7 @@ return {
 			modes = {
 				char = {
 					enabled = true,
-					jump_labels = true,
+					jump_labels = false,
 				},
 			},
 		},
@@ -485,8 +485,6 @@ return {
 		},
 
 		opts = function()
-			local osys = require("cmake-tools.osys")
-
 			return {
 				cmake_command = "cmake",
 				ctest_command = "ctest",
@@ -501,15 +499,11 @@ return {
 
 				cmake_build_options = {},
 
-				cmake_build_directory = function()
-					if osys.iswin32 then
-						return "out\\build\\${variant:buildType}"
-					end
-					return "out/build/${variant:buildType}"
-				end,
-
 				cmake_compile_commands_options = {
-					action = "lsp",
+					-- zet compile_commands.json in je project root
+					-- zodat clangd hem altijd vindt
+					action = "copy",
+					target = vim.loop.cwd(),
 				},
 
 				cmake_dap_configuration = {
