@@ -1,10 +1,7 @@
-local conf = require("telescope.config").values
-local themes = require("telescope.themes")
-
--- =========================
--- Harpoon → Telescope bridge (safe)
--- =========================
 local function toggle_telescope(harpoon_list)
+	local conf = require("telescope.config").values
+	local themes = require("telescope.themes")
+
 	local file_paths = {}
 
 	local items = harpoon_list.items or {}
@@ -89,33 +86,11 @@ return {
 				},
 			})
 
-			pcall(require("telescope").load_extension, "fzf")
-
 			local builtin = require("telescope.builtin")
 
 			vim.keymap.set("n", "<leader>fp", function()
 				builtin.help_tags()
 			end, { desc = "Find help" })
-
-			vim.keymap.set("n", "<leader>fa", function()
-				builtin.buffers()
-			end, { desc = "Find buffers" })
-
-			vim.keymap.set("n", "<leader>ff", function()
-				builtin.find_files()
-			end, { desc = "Find files" })
-
-			vim.keymap.set("n", "<leader>fd", function()
-				builtin.live_grep()
-			end, { desc = "Find grep" })
-
-			vim.keymap.set("n", "<leader>fs", function()
-				builtin.commands()
-			end, { desc = "Find commands" })
-
-			vim.keymap.set("n", "<leader>fg", function()
-				builtin.git_files()
-			end, { desc = "Find git files" })
 
 			vim.keymap.set("n", "<leader>fk", function()
 				builtin.lsp_document_symbols()

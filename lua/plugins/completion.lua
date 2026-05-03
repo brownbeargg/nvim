@@ -20,6 +20,7 @@ return {
 			"saadparwaiz1/cmp_luasnip",
 			"rafamadriz/friendly-snippets",
 			"zbirenbaum/copilot-cmp",
+            "onsails/lspkind.nvim"
 		},
 		config = function()
 			local cmp = require("cmp")

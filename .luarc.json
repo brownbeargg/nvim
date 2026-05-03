@@ -2,6 +2,7 @@
     "diagnostics.globals": [
         "vim",
         "j",
-        "pb_api"
+        "pb_api",
+        "Snacks"
     ]
 }

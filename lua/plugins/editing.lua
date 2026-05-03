@@ -6,7 +6,6 @@ return {
 		dependencies = {
 			{ "nvim-treesitter/nvim-treesitter-textobjects", lazy = false },
 			"HiPhish/rainbow-delimiters.nvim",
-			"nvim-treesitter/playground",
 		},
 		config = function()
 			require("nvim-treesitter.configs").setup({
@@ -36,9 +35,8 @@ return {
 				},
 			})
 
-			local rainbow_delimiters = require("rainbow-delimiters")
 			vim.g.rainbow_delimiters = {
-				strategy = { [""] = rainbow_delimiters.strategy["global"] },
+				strategy = { [""] = "rainbow-delimiters.strategy.global" },
 				query = { [""] = "rainbow-delimiters" },
 				highlight = {
 					"RainbowDelimiterYellow",
@@ -142,93 +140,6 @@ return {
 		},
 	},
 
-	{
-		"ThePrimeagen/refactoring.nvim",
-		dependencies = {
-			"nvim-lua/plenary.nvim",
-			"nvim-treesitter/nvim-treesitter",
-		},
-		keys = {
-			{
-				"<leader>rs",
-				function()
-					require("refactoring").select_refactor()
-				end,
-				mode = { "n", "v" },
-				desc = "Refactor: Select",
-			},
-			{
-				"<leader>ref",
-				function()
-					require("refactoring").refactor("Extract Function")
-				end,
-				mode = "v",
-				desc = "Refactor: Extract Function",
-			},
-			{
-				"<leader>rff",
-				function()
-					require("refactoring").refactor("Extract Function To File")
-				end,
-				mode = "v",
-				desc = "Refactor: Extract Function To File",
-			},
-			{
-				"<leader>rev",
-				function()
-					require("refactoring").refactor("Extract Variable")
-				end,
-				mode = "v",
-				desc = "Refactor: Extract Variable",
-			},
-			{
-				"<leader>riv",
-				function()
-					require("refactoring").refactor("Inline Variable")
-				end,
-				mode = { "n", "v" },
-				desc = "Refactor: Inline Variable",
-			},
-			{
-				"<leader>reb",
-				function()
-					require("refactoring").refactor("Extract Block")
-				end,
-				mode = "n",
-				desc = "Refactor: Extract Block",
-			},
-			{
-				"<leader>rbf",
-				function()
-					require("refactoring").refactor("Extract Block To File")
-				end,
-				mode = "n",
-				desc = "Refactor: Extract Block To File",
-			},
-		},
-		config = function()
-			require("refactoring").setup({
-				prompt_func_return_type = {
-					go = true,
-					java = true,
-					cpp = true,
-					c = true,
-					h = true,
-					hpp = true,
-					cxx = true,
-				},
-				prompt_func_param_type = {
-					go = true,
-					java = true,
-					cpp = true,
-					c = true,
-					h = true,
-					hpp = true,
-					cxx = true,
-				},
-			})
-		end,
-	},
 	{
 		"monaqa/dial.nvim",
 		keys = {
@@ -390,7 +301,7 @@ return {
 		"mbbill/undotree",
 
 		keys = {
-			{ "<leader>u", "<cmd>UndotreeToggle<CR>", desc = "Undotree: Toggle" },
+			{ "<leader>U", "<cmd>UndotreeToggle<CR>", desc = "Undotree: Toggle" },
 		},
 
 		config = function()

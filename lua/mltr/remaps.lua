@@ -32,7 +32,7 @@ vim.keymap.set("n", "<C-c>", "<cmd>cnext<CR>zz")
 vim.keymap.set("n", "<C-x>", "<cmd>cprev<CR>zz")
 
 -- replacing
-vim.keymap.set("n", "<leader>s", ":%s/\\<<C-r><C-w>\\>/<C-r><C-w>/gI<left><left><left>")
+vim.keymap.set("n", "<leader>sr", ":%s/\\<<C-r><C-w>\\>/<C-r><C-w>/gI<left><left><left>")
 
 -- moving between windows
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
