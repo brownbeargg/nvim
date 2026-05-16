@@ -16,11 +16,8 @@ return {
 			"hrsh7th/cmp-buffer",
 			"hrsh7th/cmp-path",
 			"hrsh7th/cmp-nvim-lsp-signature-help",
-			"L3MON4D3/LuaSnip",
-			"saadparwaiz1/cmp_luasnip",
-			"rafamadriz/friendly-snippets",
 			"zbirenbaum/copilot-cmp",
-            "onsails/lspkind.nvim"
+			"onsails/lspkind.nvim",
 		},
 		config = function()
 			local cmp = require("cmp")
@@ -29,9 +26,7 @@ return {
 
 			cmp.setup({
 				snippet = {
-					expand = function(args)
-						luasnip.lsp_expand(args.body)
-					end,
+					expand = function() end,
 				},
 
 				mapping = cmp.mapping.preset.insert({
@@ -99,33 +94,12 @@ return {
 				},
 
 				sources = {
-					{ name = "luasnip", priority = 1000 },
 					{ name = "copilot", priority = 900 },
 					{ name = "nvim_lsp", priority = 500 },
 					{ name = "buffer", priority = 450 },
 					{ name = "path", priority = 200 },
 				},
 			})
-		end,
-	},
-
-	{
-		"zbirenbaum/copilot.lua",
-		cmd = "Copilot",
-		event = "InsertEnter",
-		config = function()
-			require("copilot").setup({
-				suggestion = { enabled = false },
-				panel = { enabled = false },
-			})
-		end,
-	},
-
-	{
-		"zbirenbaum/copilot-cmp",
-		after = { "zbirenbaum/copilot.lua" },
-		config = function()
-			require("copilot_cmp").setup()
 		end,
 	},
 }

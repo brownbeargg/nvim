@@ -53,12 +53,6 @@ return {
 				sources = {
 					formatting.stylua,
 
-					diagnostics.selene.with({
-						condition = function(params)
-							return root_has(params, { "selene.toml", "selene.yml" })
-						end,
-					}),
-
 					formatting.clang_format.with({
 						filetypes = clang_fts,
 						extra_args = function(params)
@@ -76,14 +70,6 @@ return {
 						end,
 					}),
 
-					diagnostics.glslc.with({
-						filetypes = GLSL_FTS,
-						extra_args = {
-							"-c",
-							"-fauto-map-locations",
-							"-fauto-bind-uniforms",
-						},
-					}),
 				},
 			})
 
@@ -95,39 +81,6 @@ return {
 					timeout_ms = 10000,
 				})
 			end, { desc = "Format buffer (none-ls)" })
-		end,
-	},
-
-	{
-		"mfussenegger/nvim-lint",
-		config = function()
-			local lint = require("lint")
-
-			if lint.linters.cppcheck then
-				lint.linters.cppcheck.args = {
-					"--enable=warning,style,performance,portability",
-					"--inconclusive",
-					"--language=c++",
-					"--std=c++20",
-					"--template=gcc",
-				}
-				lint.linters.cppcheck.ignore_exitcode = true
-			end
-
-			lint.linters_by_ft = {
-				c = { "cppcheck" },
-				cpp = { "cppcheck" },
-			}
-
-			vim.api.nvim_create_autocmd("BufWritePost", {
-				callback = function()
-					lint.try_lint()
-				end,
-			})
-
-			vim.keymap.set("n", "<leader>lc", function()
-				lint.try_lint()
-			end, { desc = "Run cppcheck" })
 		end,
 	},
 }

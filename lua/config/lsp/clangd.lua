@@ -12,9 +12,16 @@ local clangd_cmd = {
 }
 
 function M.setup(on_attach, capabilities)
+	capabilities.textDocument.completion.completionItem.snippetSupport = false
+
 	vim.lsp.config("clangd", {
 		cmd = clangd_cmd,
-		on_attach = on_attach,
+		on_attach = function(client, bufnr)
+			client.server_capabilities.diagnosticProvider = false
+			vim.diagnostic.enable(false, { bufnr = bufnr })
+
+			on_attach(client, bufnr)
+		end,
 		capabilities = capabilities,
 	})
 

@@ -43,3 +43,11 @@ vim.opt.signcolumn = "yes"
 -- disable netrw
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
+
+vim.diagnostic.config({
+    virtual_text = false,
+    signs = false,
+    underline = false,
+    update_in_insert = false,
+    severity_sort = false,
+})
