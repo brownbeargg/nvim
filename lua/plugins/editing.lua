@@ -396,25 +396,35 @@ return {
 		},
 
 		opts = function()
+			local function project_root()
+				local file = vim.api.nvim_buf_get_name(0)
+				local dir = file ~= "" and vim.fs.dirname(file) or vim.loop.cwd()
+
+				return vim.fs.root(dir, {
+					"CMakeLists.txt",
+					"CMakePresets.json",
+					".git",
+				}) or vim.loop.cwd()
+			end
+
 			return {
 				cmake_command = "cmake",
 				ctest_command = "ctest",
-				ctest_show_labels = true,
 
 				cmake_use_preset = true,
 				cmake_regenerate_on_save = true,
+
+				cmake_build_directory = function()
+					return project_root() .. "/build/${variant:buildType}"
+				end,
 
 				cmake_generate_options = {
 					"-DCMAKE_EXPORT_COMPILE_COMMANDS=1",
 				},
 
-				cmake_build_options = {},
-
 				cmake_compile_commands_options = {
-					-- zet compile_commands.json in je project root
-					-- zodat clangd hem altijd vindt
 					action = "copy",
-					target = vim.loop.cwd(),
+					target = project_root,
 				},
 
 				cmake_dap_configuration = {

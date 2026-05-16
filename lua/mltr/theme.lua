@@ -328,7 +328,7 @@ function M.colorscheme()
 	vim.o.background = "dark"
 	vim.g.colors_name = "bears-Forest"
 
-	local transparentUI = true
+	local transparentUI = false
 	local transparentBG = false
 
 	-- Lower blend keeps UI cleaner and more readable

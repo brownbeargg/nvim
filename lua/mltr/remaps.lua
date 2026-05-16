@@ -46,4 +46,7 @@ vim.keymap.set("n", "<Down>", ":resize -2<CR>", opts)
 vim.keymap.set("n", "<Left>", ":vertical resize +2<CR>", opts)
 vim.keymap.set("n", "<Right>", ":vertical resize -2<CR>", opts)
 
+-- Tabs
+vim.keymap.set("n", "<C-a>", ":tabnew<CR>")
+
 vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")

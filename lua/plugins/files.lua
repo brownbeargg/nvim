@@ -88,10 +88,6 @@ return {
 
 			local builtin = require("telescope.builtin")
 
-			vim.keymap.set("n", "<leader>fp", function()
-				builtin.help_tags()
-			end, { desc = "Find help" })
-
 			vim.keymap.set("n", "<leader>fk", function()
 				builtin.lsp_document_symbols()
 			end, { desc = "Find symbols in current file" })
@@ -99,10 +95,6 @@ return {
 			vim.keymap.set("n", "<leader>fl", function()
 				builtin.lsp_workspace_symbols()
 			end, { desc = "Find symbols in current workspace" })
-
-			vim.keymap.set("n", "<leader>fi", function()
-				builtin.current_buffer_fuzzy_find()
-			end, { desc = "Find in current buffer" })
 
 			vim.keymap.set({ "n", "v" }, "<leader>la", function()
 				vim.lsp.buf.code_action()
